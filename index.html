@@ -238,4 +238,618 @@
   .log-entry { padding: 3px 5px; border-radius: 4px; background: rgba(15, 23, 42, 0.5); border-left: 3px solid #64748b; }
   .log-entry.sente-win { border-left-color: #ffffff; }
   .log-entry.gote-win { border-left-color: #ef4444; }
-  .log-entry.victory { border-left-color: var(--accent); background: rgba(245, 158, 11, 0.15); font-weight: 700;
+  .log-entry.victory { border-left-color: var(--accent); background: rgba(245, 158, 11, 0.15); font-weight: 700; color: #fde68a; }
+
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-overlay.active { display: flex; }
+  .battle-card {
+    background: #1e293b; border: 2px solid var(--accent); border-radius: 18px;
+    padding: 20px; width: 90%; max-width: 400px; text-align: center;
+  }
+  .battle-vs { display: flex; justify-content: space-around; align-items: center; margin: 16px 0; }
+  .battle-icon {
+    font-size: 2.8rem; width: 68px; height: 68px; display: flex;
+    align-items: center; justify-content: center; background: #0f172a;
+    border-radius: 50%; border: 3px solid var(--border);
+  }
+  .battle-result-text { font-size: 1.2rem; font-weight: 800; margin-top: 8px; }
+  .win-text { color: #4ade80; }
+  .lose-text { color: #f87171; }
+  .draw-text { color: #fbbf24; }
+  .sound-btn {
+    position: absolute; top: 12px; right: 12px; background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--border); color: var(--text-main); padding: 4px 10px;
+    border-radius: 16px; font-size: 0.75rem; cursor: pointer;
+  }
+  #confetti-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 999; }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+<button id="soundToggle" class="sound-btn" onclick="toggleSound()">🔊 サウンド: ON</button>
+
+<header>
+  <h1>⚔️ ジャンケン三目並べ ⚔️</h1>
+  <div class="subtitle">ジャンケンを囲む白丸⚪ & 赤丸🔴 ｜ 手も丸も盤面に残り続ける！</div>
+</header>
+
+<div class="app-container">
+  <div class="game-area">
+    <div class="status-bar">
+      <div id="senteTag" class="player-tag sente active"><span>⚪ 先手 (白丸)</span></div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">VS</div>
+      <div id="goteTag" class="player-tag gote"><span>🔴 後手 (赤丸)</span></div>
+    </div>
+
+    <div id="messageBanner" class="message-banner">先手の手番: 配置する手を選んでください</div>
+
+    <div class="board-wrapper">
+      <div id="board" class="board"></div>
+    </div>
+
+    <div class="hand-selector">
+      <div class="hand-selector-title">配置する手を選択</div>
+      <div class="hand-buttons">
+        <button class="hand-btn selected" data-hand="rock" onclick="selectHand('rock')">
+          <span class="btn-icon">✊</span>
+          <span class="btn-label">グー</span>
+          <span class="btn-direction">ナナメ攻撃</span>
+        </button>
+        <button class="hand-btn" data-hand="scissors" onclick="selectHand('scissors')">
+          <span class="btn-icon">✌️</span>
+          <span class="btn-label">チョキ</span>
+          <span class="btn-direction">タテ攻撃</span>
+        </button>
+        <button class="hand-btn" data-hand="paper" onclick="selectHand('paper')">
+          <span class="btn-icon">🖐️</span>
+          <span class="btn-label">パー</span>
+          <span class="btn-direction">ヨコ攻撃</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <div class="panel-title">⚙️ 対戦設定</div>
+      <div class="form-group">
+        <label>対戦形式</label>
+        <select id="gameMode" onchange="changeMode()">
+          <option value="pvp">📱 2人プレイ (1台で交代対戦)</option>
+          <option value="vsAi">🤖 1人プレイ (vs AI)</option>
+        </select>
+      </div>
+      <div class="form-group" id="aiLevelGroup" style="display:none;">
+        <label>AIの強さ</label>
+        <select id="aiLevel">
+          <option value="hard">上級 (戦略的)</option>
+          <option value="normal">中級 (標準)</option>
+          <option value="easy">初級 (おてがる)</option>
+        </select>
+      </div>
+      <button class="action-btn primary" onclick="resetGame()">🔄 ゲームをリセット</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📖 ルール解説</div>
+      <table class="rule-table">
+        <thead>
+          <tr><th>手</th><th>攻撃射程</th><th>勝負のルール</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>✊ グー</td><td>ナナメ</td><td rowspan="3">
+            <b>【勝負の結果】</b><br>
+            ・勝つと<b>自分の丸（⚪/🔴）がジャンケンを包み込みます</b>！<br>
+            ・<b>手も丸も盤面に残り続け</b>、次回以降の対戦対象になります！<br>
+            ・負け・あいこでも手は盤面に残ります。
+          </td></tr>
+          <tr><td>✌️ チョキ</td><td>タテ</td></tr>
+          <tr><td>🖐️ パー</td><td>ヨコ</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+        ※丸で囲まれた手を<b>3つ連続で並べた</b>プレイヤーの勝利！
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📜 対戦履歴</div>
+      <div id="battleLog" class="log-container">
+        <div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="battleModal" class="modal-overlay">
+  <div class="battle-card">
+    <h2 style="font-size: 1.1rem; color: #fbbf24; margin-bottom: 4px;">⚔️ ジャンケン対戦！ ⚔️</h2>
+    <div id="battleSubtitle" style="font-size: 0.8rem; color: var(--text-muted);"></div>
+    <div class="battle-vs">
+      <div class="battle-player">
+        <div id="battleAttackerTag" style="font-weight: 700;">攻撃側</div>
+        <div id="battleAttackerIcon" class="battle-icon">✊</div>
+        <div id="battleAttackerHandName" style="font-size: 0.8rem;">グー</div>
+      </div>
+      <div style="font-size: 1.3rem; font-weight: 900; color: #ef4444;">VS</div>
+      <div class="battle-player">
+        <div id="battleDefenderTag" style="font-weight: 700;">守備側</div>
+        <div id="battleDefenderIcon" class="battle-icon">✌️</div>
+        <div id="battleDefenderHandName" style="font-size: 0.8rem;">チョキ</div>
+      </div>
+    </div>
+    <div id="battleResultText" class="battle-result-text win-text">WIN!</div>
+    <div id="battleDetailText" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;"></div>
+    <button class="action-btn primary" style="margin-top: 14px;" onclick="closeBattleModal()">次へ進む</button>
+  </div>
+</div>
+
+<div id="victoryModal" class="modal-overlay">
+  <div class="battle-card" style="border-color: #fbbf24; box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);">
+    <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
+    <h2 id="victoryTitle" style="font-size: 1.4rem; color: #fbbf24; margin-bottom: 6px;">勝者決定！</h2>
+    <p id="victoryDesc" style="font-size: 0.88rem; color: var(--text-main); margin-bottom: 14px; line-height: 1.4;"></p>
+    <button class="action-btn primary" onclick="closeVictoryModal(); resetGame();">もう一度遊ぶ</button>
+  </div>
+</div>
+
+<script>
+  const HAND_NAMES = { rock: 'グー', scissors: 'チョキ', paper: 'パー' };
+  const HAND_ICONS = { rock: '✊', scissors: '✌️', paper: '🖐️' };
+  const SENTE = 1, GOTE = 2; // 1: Sente (白丸⚪), 2: Gote (赤丸🔴)
+
+  let soundEnabled = true, audioCtx = null;
+  function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  function playTone(freq, type, duration, delay = 0) {
+    if (!soundEnabled) return;
+    try {
+      initAudio();
+      setTimeout(() => {
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+      }, delay * 1000);
+    } catch(e){}
+  }
+  function playSound(name) {
+    if (!soundEnabled) return;
+    if (name === 'click') playTone(600, 'sine', 0.08);
+    if (name === 'place') { playTone(440, 'triangle', 0.1); playTone(880, 'sine', 0.12, 0.05); }
+    if (name === 'win') { playTone(523, 'sine', 0.12, 0); playTone(659, 'sine', 0.12, 0.1); playTone(783, 'sine', 0.15, 0.2); playTone(1046, 'sine', 0.3, 0.3); }
+    if (name === 'lose') { playTone(300, 'sawtooth', 0.15, 0); playTone(220, 'sawtooth', 0.25, 0.12); }
+    if (name === 'draw') { playTone(440, 'sine', 0.15, 0); playTone(440, 'sine', 0.15, 0.15); }
+    if (name === 'victory') { [523, 659, 783, 1046, 783, 1046].forEach((f, i) => playTone(f, 'sine', 0.25, i * 0.15)); }
+  }
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById('soundToggle').innerText = soundEnabled ? '🔊 サウンド: ON' : '🔈 サウンド: OFF';
+  }
+
+  let board = Array(25).fill(null).map(() => ({ mark: null, hand: null }));
+  let currentPlayer = SENTE, turnCount = 1, senteFirstTurnPlaced = 0;
+  let selectedHand = 'rock', gameOver = false, awaitingTargetSelection = null, lastBattleResolveCallback = null;
+
+  const boardEl = document.getElementById('board');
+  function createBoardUI() {
+    boardEl.innerHTML = '';
+    for (let i = 0; i < 25; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell'; cell.dataset.index = i;
+      cell.addEventListener('click', () => onCellClick(i));
+      cell.addEventListener('mouseenter', () => onCellHover(i));
+      cell.addEventListener('mouseleave', () => clearHoverEffects());
+      boardEl.appendChild(cell);
+    }
+  }
+
+  function selectHand(hand) {
+    if (awaitingTargetSelection) return;
+    selectedHand = hand;
+    document.querySelectorAll('.hand-btn').forEach(btn => btn.classList.toggle('selected', btn.dataset.hand === hand));
+    playSound('click');
+  }
+
+  function changeMode() {
+    const mode = document.getElementById('gameMode').value;
+    document.getElementById('aiLevelGroup').style.display = mode === 'vsAi' ? 'flex' : 'none';
+    resetGame();
+  }
+
+  function resetGame() {
+    board = Array(25).fill(null).map(() => ({ mark: null, hand: null }));
+    currentPlayer = SENTE; turnCount = 1; senteFirstTurnPlaced = 0;
+    gameOver = false; awaitingTargetSelection = null;
+    document.getElementById('battleModal').classList.remove('active');
+    document.getElementById('victoryModal').classList.remove('active');
+    document.getElementById('battleLog').innerHTML = '<div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>';
+    renderBoard(); updateStatusUI(); playSound('click');
+  }
+
+  function updateStatusUI() {
+    document.getElementById('senteTag').classList.toggle('active', currentPlayer === SENTE && !gameOver);
+    document.getElementById('goteTag').classList.toggle('active', currentPlayer === GOTE && !gameOver);
+    const banner = document.getElementById('messageBanner');
+    banner.classList.remove('target-mode');
+
+    if (gameOver) { banner.innerText = 'ゲーム終了！'; return; }
+
+    if (awaitingTargetSelection) {
+      banner.innerText = '💥 攻撃対象の相手の手を選択してください！';
+      banner.classList.add('target-mode');
+      return;
+    }
+
+    const pName = currentPlayer === SENTE ? '先手 (白丸⚪)' : (document.getElementById('gameMode').value === 'vsAi' ? '後手 (AI 赤丸🔴)' : '後手 (赤丸🔴)');
+    if (turnCount === 1 && senteFirstTurnPlaced < 2) {
+      banner.innerText = `【先手 初手】 手を選んで配置してください (${senteFirstTurnPlaced + 1} / 2マス目)`;
+    } else {
+      banner.innerText = `${pName}の手番: 手を選んで空きマスに配置してください`;
+    }
+  }
+
+  function renderBoard() {
+    for (let i = 0; i < 25; i++) {
+      const cellEl = boardEl.children[i];
+      const data = board[i];
+      cellEl.innerHTML = '';
+      cellEl.className = 'cell';
+
+      if (data.hand !== null) {
+        cellEl.classList.add('occupied-cell');
+        const wrap = document.createElement('div');
+        wrap.className = 'hand-wrapper';
+
+        if (data.mark !== null) {
+          const ring = document.createElement('div');
+          ring.className = `encircled-ring ${data.mark === SENTE ? 'sente' : 'gote'}`;
+          ring.innerHTML = `<span class="hand-icon">${HAND_ICONS[data.hand.type]}</span>`;
+          wrap.appendChild(ring);
+        } else {
+          const plain = document.createElement('div');
+          plain.className = `plain-hand ${data.hand.player === SENTE ? 'sente' : 'gote'}`;
+          plain.innerHTML = `
+            <span class="hand-icon">${HAND_ICONS[data.hand.type]}</span>
+            <span class="hand-owner">${data.hand.player === SENTE ? '先手' : '後手'}</span>
+          `;
+          wrap.appendChild(plain);
+        }
+
+        cellEl.appendChild(wrap);
+      }
+    }
+
+    if (awaitingTargetSelection) {
+      awaitingTargetSelection.candidateTargets.forEach(idx => boardEl.children[idx].classList.add('target-selectable'));
+    }
+  }
+
+  function getAttackLineIndices(index, hand) {
+    const row = Math.floor(index / 5), col = index % 5, indices = [];
+    if (hand === 'scissors') {
+      for (let r = 0; r < 5; r++) if (r !== row) indices.push(r * 5 + col);
+    } else if (hand === 'paper') {
+      for (let c = 0; c < 5; c++) if (c !== col) indices.push(row * 5 + c);
+    } else if (hand === 'rock') {
+      for (let d = -4; d <= 4; d++) {
+        if (d === 0) continue;
+        const nr1 = row + d, nc1 = col + d;
+        if (nr1 >= 0 && nr1 < 5 && nc1 >= 0 && nc1 < 5) indices.push(nr1 * 5 + nc1);
+        const nr2 = row + d, nc2 = col - d;
+        if (nr2 >= 0 && nr2 < 5 && nc2 >= 0 && nc2 < 5) indices.push(nr2 * 5 + nc2);
+      }
+    }
+    return indices;
+  }
+
+  function onCellHover(index) {
+    if (gameOver || awaitingTargetSelection || board[index].hand !== null) return;
+    clearHoverEffects();
+    getAttackLineIndices(index, selectedHand).forEach(idx => boardEl.children[idx].classList.add('highlight-line'));
+  }
+
+  function clearHoverEffects() {
+    for (let i = 0; i < 25; i++) boardEl.children[i].classList.remove('highlight-line');
+  }
+
+  function onCellClick(index) {
+    if (gameOver) return;
+
+    if (awaitingTargetSelection) {
+      if (awaitingTargetSelection.candidateTargets.includes(index)) {
+        const targetIdx = index, attackerIdx = awaitingTargetSelection.attackerIndex, hand = awaitingTargetSelection.hand;
+        awaitingTargetSelection = null;
+        renderBoard();
+        resolveBattle(attackerIdx, hand, targetIdx);
+      }
+      return;
+    }
+
+    if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) return;
+    makeMove(index, selectedHand);
+  }
+
+  function makeMove(index, hand) {
+    if (board[index].hand !== null) return;
+
+    playSound('place');
+
+    if (turnCount === 1 && currentPlayer === SENTE) {
+      board[index].hand = { player: SENTE, type: hand };
+      senteFirstTurnPlaced++;
+      logEntry(`先手 が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (${senteFirstTurnPlaced}/2)`);
+      renderBoard();
+      if (senteFirstTurnPlaced === 2) {
+        currentPlayer = GOTE; turnCount = 2; updateStatusUI(); checkAiTurn();
+      } else {
+        updateStatusUI();
+      }
+      return;
+    }
+
+    const opponent = currentPlayer === SENTE ? GOTE : SENTE;
+    const opponentTargets = getAttackLineIndices(index, hand).filter(idx => {
+      const cell = board[idx];
+      return cell.hand !== null && cell.hand.player === opponent;
+    });
+
+    if (opponentTargets.length === 0) {
+      board[index].hand = { player: currentPlayer, type: hand };
+      const pName = currentPlayer === SENTE ? '先手' : '後手';
+      logEntry(`${pName} が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (対戦なし)`);
+      renderBoard(); finishTurn();
+    } else if (opponentTargets.length === 1) {
+      resolveBattle(index, hand, opponentTargets[0]);
+    } else {
+      if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) {
+        const chosen = chooseBestAiTarget(opponentTargets, hand);
+        resolveBattle(index, hand, chosen);
+      } else {
+        awaitingTargetSelection = { attackerIndex: index, hand: hand, candidateTargets: opponentTargets };
+        updateStatusUI(); renderBoard();
+      }
+    }
+  }
+
+  function chooseBestAiTarget(targets, aiHand) {
+    for (let t of targets) if (jankenCompare(aiHand, board[t].hand.type) === 1) return t;
+    for (let t of targets) if (jankenCompare(aiHand, board[t].hand.type) === 0) return t;
+    return targets[0];
+  }
+
+  function jankenCompare(handA, handB) {
+    if (handA === handB) return 0;
+    if ((handA === 'rock' && handB === 'scissors') || (handA === 'scissors' && handB === 'paper') || (handA === 'paper' && handB === 'rock')) return 1;
+    return -1;
+  }
+
+  function resolveBattle(attackerIndex, attackerHand, targetIndex) {
+    const defenderHand = board[targetIndex].hand.type;
+    const attackerPlayer = currentPlayer, defenderPlayer = board[targetIndex].hand.player;
+    const result = jankenCompare(attackerHand, defenderHand);
+
+    showBattleModal(attackerPlayer, attackerHand, defenderPlayer, defenderHand, result, () => {
+      const pName = attackerPlayer === SENTE ? '先手' : '後手', defName = defenderPlayer === SENTE ? '先手' : '後手';
+      const markIcon = attackerPlayer === SENTE ? '⚪' : '🔴';
+
+      board[attackerIndex].hand = { player: attackerPlayer, type: attackerHand };
+
+      if (result === 1) {
+        board[attackerIndex].mark = attackerPlayer;
+        playSound('win');
+        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]の手が${markIcon}で囲まれました（両者の手は残留）`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
+
+      } else if (result === -1) {
+        playSound('lose');
+        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${defName}の防衛！</b> 手は盤面に残留`, defenderPlayer === SENTE ? 'sente-win' : 'gote-win');
+
+      } else {
+        playSound('draw');
+        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>あいこ！</b> 両者の手が盤面に残留`);
+      }
+
+      renderBoard();
+
+      const winningLine = checkWin(attackerPlayer);
+      if (winningLine) { triggerVictory(attackerPlayer, winningLine); return; }
+
+      finishTurn();
+    });
+  }
+
+  function finishTurn() {
+    turnCount++; currentPlayer = currentPlayer === SENTE ? GOTE : SENTE;
+    updateStatusUI(); checkAiTurn();
+  }
+
+  function checkWin(player) {
+    const isPlayerMark = (idx) => board[idx].mark === player;
+
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c <= 2; c++) {
+        const i1 = r * 5 + c, i2 = r * 5 + c + 1, i3 = r * 5 + c + 2;
+        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
+      }
+    }
+    for (let c = 0; c < 5; c++) {
+      for (let r = 0; r <= 2; r++) {
+        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c, i3 = (r + 2) * 5 + c;
+        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
+      }
+    }
+    for (let r = 0; r <= 2; r++) {
+      for (let c = 0; c <= 2; c++) {
+        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c + 1, i3 = (r + 2) * 5 + c + 2;
+        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
+      }
+    }
+    for (let r = 0; r <= 2; r++) {
+      for (let c = 2; c < 5; c++) {
+        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c - 1, i3 = (r + 2) * 5 + c - 2;
+        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
+      }
+    }
+    return null;
+  }
+
+  function triggerVictory(winner, winIndices) {
+    gameOver = true;
+    winIndices.forEach(idx => boardEl.children[idx].classList.add('win-line'));
+    playSound('victory'); startConfetti();
+    const wName = winner === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
+    logEntry(`🎉 <b>${wName}の勝利！</b> 囲まれたジャンケンを3つ揃えて勝利しました！`, 'victory');
+    setTimeout(() => {
+      document.getElementById('victoryTitle').innerText = `${wName} の完全勝利！`;
+      document.getElementById('victoryDesc').innerText = `見事な戦略で5×5盤面に3つの囲み丸（${winner === SENTE ? '⚪' : '🔴'}）を揃えました！`;
+      document.getElementById('victoryModal').classList.add('active');
+    }, 800);
+  }
+
+  function showBattleModal(atkPlayer, atkHand, defPlayer, defHand, result, onResolve) {
+    lastBattleResolveCallback = onResolve;
+    document.getElementById('battleSubtitle').innerText = `${atkPlayer === SENTE ? '先手' : '後手'}からの攻撃！`;
+    const atkTag = document.getElementById('battleAttackerTag');
+    atkTag.innerText = atkPlayer === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
+    atkTag.style.color = atkPlayer === SENTE ? '#ffffff' : '#ef4444';
+    const defTag = document.getElementById('battleDefenderTag');
+    defTag.innerText = defPlayer === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
+    defTag.style.color = defPlayer === SENTE ? '#ffffff' : '#ef4444';
+    document.getElementById('battleAttackerIcon').innerText = HAND_ICONS[atkHand];
+    document.getElementById('battleAttackerHandName').innerText = HAND_NAMES[atkHand];
+    document.getElementById('battleDefenderIcon').innerText = HAND_ICONS[defHand];
+    document.getElementById('battleDefenderHandName').innerText = HAND_NAMES[defHand];
+    const resText = document.getElementById('battleResultText');
+    const detailText = document.getElementById('battleDetailText');
+    if (result === 1) {
+      resText.className = 'battle-result-text win-text'; resText.innerText = 'WIN! 攻撃側の勝利！';
+      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。手は両者とも盤面に残り続けます。`;
+    } else if (result === -1) {
+      resText.className = 'battle-result-text lose-text'; resText.innerText = 'LOSE... 守備側の防衛！';
+      detailText.innerText = '丸は獲得できませんが、手は盤面に残り続けます。';
+    } else {
+      resText.className = 'battle-result-text draw-text'; resText.innerText = 'DRAW (あいこ)';
+      detailText.innerText = '両者の手が盤面に残り続けます。';
+    }
+    document.getElementById('battleModal').classList.add('active');
+  }
+
+  function closeBattleModal() {
+    document.getElementById('battleModal').classList.remove('active');
+    if (lastBattleResolveCallback) {
+      const cb = lastBattleResolveCallback; lastBattleResolveCallback = null; cb();
+    }
+  }
+
+  function closeVictoryModal() {
+    document.getElementById('victoryModal').classList.remove('active');
+    stopConfetti();
+  }
+
+  function checkAiTurn() {
+    if (gameOver) return;
+    if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) {
+      setTimeout(executeAiTurn, 600);
+    }
+  }
+
+  function executeAiTurn() {
+    if (gameOver) return;
+    const level = document.getElementById('aiLevel').value;
+    const emptyIndices = [];
+    for (let i = 0; i < 25; i++) if (board[i].hand === null) emptyIndices.push(i);
+    if (emptyIndices.length === 0) return;
+
+    let bestMove = null;
+    const hands = ['rock', 'scissors', 'paper'];
+    if (level === 'easy') {
+      bestMove = { index: emptyIndices[Math.floor(Math.random() * emptyIndices.length)], hand: hands[Math.floor(Math.random() * hands.length)] };
+    } else {
+      let highestScore = -9999;
+      for (let idx of emptyIndices) {
+        for (let hand of hands) {
+          let score = evaluateMove(idx, hand);
+          if (score > highestScore) { highestScore = score; bestMove = { index: idx, hand: hand }; }
+        }
+      }
+    }
+    if (bestMove) makeMove(bestMove.index, bestMove.hand);
+  }
+
+  function evaluateMove(index, hand) {
+    let score = 0;
+    const opponentTargets = getAttackLineIndices(index, hand).filter(idx => {
+      const c = board[idx]; return c.hand !== null && c.hand.player === SENTE;
+    });
+
+    const prevMark = board[index].mark;
+    board[index].mark = GOTE;
+    if (checkWin(GOTE)) score += 1000;
+    board[index].mark = SENTE;
+    if (checkWin(SENTE)) score += 400;
+    board[index].mark = prevMark;
+
+    for (let t of opponentTargets) {
+      const res = jankenCompare(hand, board[t].hand.type);
+      if (res === 1) score += 150;
+      else if (res === -1) score -= 50;
+    }
+    const row = Math.floor(index / 5), col = index % 5;
+    score += (4 - (Math.abs(row - 2) + Math.abs(col - 2))) * 5;
+    return score;
+  }
+
+  function coordName(idx) {
+    return `${String.fromCharCode(65 + (idx % 5))}${Math.floor(idx / 5) + 1}`;
+  }
+
+  function logEntry(msg, className = '') {
+    const log = document.getElementById('battleLog');
+    const el = document.createElement('div');
+    el.className = `log-entry ${className}`;
+    el.innerHTML = msg;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  let confettiAnimId = null;
+  const confettiCanvas = document.getElementById('confetti-canvas'), ctx = confettiCanvas.getContext('2d');
+  let particles = [];
+  function startConfetti() {
+    confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight;
+    particles = [];
+    const colors = ['#ffffff', '#ef4444', '#f59e0b', '#10b981', '#38bdf8'];
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        x: Math.random() * confettiCanvas.width, y: Math.random() * -confettiCanvas.height,
+        size: Math.random() * 8 + 4, color: colors[Math.floor(Math.random() * colors.length)],
+        vx: Math.random() * 4 - 2, vy: Math.random() * 4 + 3, rot: Math.random() * 360, vRot: Math.random() * 10 - 5
+      });
+    }
+    animateConfetti();
+  }
+  function animateConfetti() {
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vRot;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size); ctx.restore();
+    });
+    confettiAnimId = requestAnimationFrame(animateConfetti);
+  }
+  function stopConfetti() {
+    if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  }
+
+  createBoardUI();
+  resetGame();
+</script>
+</body>
+</html>
