@@ -3,9 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (確定版)</title>
-<!-- PeerJS (WebRTC P2P通信ライブラリ) -->
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<title>新感覚！ジャンケン三目並べ</title>
 <style>
   :root {
     --bg-dark: #0f172a;
@@ -72,19 +70,10 @@
     background: rgba(15, 23, 42, 0.6);
     border-radius: 12px;
   }
-  .player-tag { font-weight: 700; font-size: 0.88rem; padding: 4px 8px; border-radius: 8px; display: flex; align-items: center; gap: 4px; }
+  .player-tag { font-weight: 700; font-size: 0.9rem; padding: 4px 10px; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
   .player-tag.sente { color: #ffffff; }
   .player-tag.gote { color: #ef4444; }
   .player-tag.active { background: rgba(255, 255, 255, 0.15); box-shadow: 0 0 12px currentColor; }
-
-  .online-role-badge {
-    font-size: 0.68rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: #3b82f6;
-    color: #fff;
-    margin-left: 4px;
-  }
 
   .message-banner {
     width: 100%;
@@ -108,11 +97,6 @@
     color: #fca5a5;
     animation: pulse 1.5s infinite;
   }
-  .message-banner.wait-mode {
-    background: rgba(100, 116, 139, 0.2);
-    border-color: #64748b;
-    color: #cbd5e1;
-  }
   @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
 
   .board-wrapper {
@@ -121,22 +105,14 @@
     background: #090d16;
     border-radius: 14px;
     border: 2px solid #334155;
-    min-width: 320px;
-    min-height: 320px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   .board {
     display: grid;
     grid-template-columns: repeat(5, 62px);
     grid-template-rows: repeat(5, 62px);
     gap: 5px;
-    width: fit-content;
-    height: fit-content;
   }
   @media (max-width: 480px) {
-    .board-wrapper { min-width: 280px; min-height: 280px; }
     .board { grid-template-columns: repeat(5, 54px); grid-template-rows: repeat(5, 54px); gap: 4px; }
   }
 
@@ -150,8 +126,6 @@
     cursor: pointer;
     position: relative;
     transition: all 0.2s ease;
-    width: 100%;
-    height: 100%;
   }
   .cell:hover:not(.occupied-cell) {
     background: var(--cell-hover);
@@ -171,6 +145,7 @@
     box-shadow: 0 0 20px #f59e0b;
   }
 
+  /* === ジャンケンを包み込む白丸・赤丸デザイン === */
   .hand-wrapper {
     display: flex;
     flex-direction: column;
@@ -198,6 +173,7 @@
   .plain-hand.sente .hand-owner { background: rgba(255, 255, 255, 0.2); color: #ffffff; border: 1px solid #ffffff; }
   .plain-hand.gote .hand-owner { background: rgba(239, 68, 68, 0.3); color: #f87171; border: 1px solid #ef4444; }
 
+  /* 白丸（⚪）で囲まれた手 */
   .encircled-ring {
     width: 48px;
     height: 48px;
@@ -218,6 +194,7 @@
     background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, rgba(15, 23, 42, 0.6) 70%);
   }
 
+  /* 赤丸（🔴）で囲まれた手 */
   .encircled-ring.gote {
     border: 3.5px solid #ef4444;
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.8), inset 0 0 6px rgba(239, 68, 68, 0.4);
@@ -228,14 +205,6 @@
     font-size: 1.5rem;
     line-height: 1;
   }
-
-  .pure-mark {
-    font-size: 2rem;
-    font-weight: 900;
-    line-height: 1;
-  }
-  .pure-mark.sente { color: #ffffff; text-shadow: 0 0 10px #ffffff; }
-  .pure-mark.gote { color: #ef4444; text-shadow: 0 0 10px #ef4444; }
 
   .hand-selector { width: 100%; margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .hand-selector-title { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
@@ -255,41 +224,21 @@
   .sidebar { display: flex; flex-direction: column; gap: 12px; }
   .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 14px; backdrop-filter: blur(10px); }
   .panel-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 5px; }
-  
   .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
   .form-group label { font-size: 0.75rem; color: var(--text-muted); }
-  select, input.text-input, button.action-btn {
+  select, button.action-btn {
     width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid var(--border);
     border-radius: 8px; color: var(--text-main); font-size: 0.82rem; outline: none;
   }
   .action-btn.primary { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 700; border: none; cursor: pointer; }
-  .action-btn.secondary { background: #334155; color: #fff; font-weight: 600; border: 1px solid var(--border); cursor: pointer; margin-top: 4px; }
-
   .rule-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
   .rule-table th, .rule-table td { padding: 5px 3px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
   .rule-table th { color: var(--text-muted); }
-  .log-container { height: 110px; overflow-y: auto; font-size: 0.72rem; display: flex; flex-direction: column; gap: 4px; }
+  .log-container { height: 120px; overflow-y: auto; font-size: 0.72rem; display: flex; flex-direction: column; gap: 4px; }
   .log-entry { padding: 3px 5px; border-radius: 4px; background: rgba(15, 23, 42, 0.5); border-left: 3px solid #64748b; }
   .log-entry.sente-win { border-left-color: #ffffff; }
   .log-entry.gote-win { border-left-color: #ef4444; }
   .log-entry.victory { border-left-color: var(--accent); background: rgba(245, 158, 11, 0.15); font-weight: 700; color: #fde68a; }
-
-  .room-box {
-    background: rgba(15, 23, 42, 0.7);
-    border: 1px solid #38bdf8;
-    border-radius: 8px;
-    padding: 8px;
-    margin-top: 6px;
-    font-size: 0.78rem;
-    text-align: center;
-  }
-  .room-code-display {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #38bdf8;
-    letter-spacing: 2px;
-    margin: 4px 0;
-  }
 
   .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -322,23 +271,19 @@
 <body>
 
 <canvas id="confetti-canvas"></canvas>
-<button id="soundToggle" class="sound-btn" onclick="toggleSound()">🔊 ON</button>
+<button id="soundToggle" class="sound-btn" onclick="toggleSound()">🔊 サウンド: ON</button>
 
 <header>
   <h1>⚔️ ジャンケン三目並べ ⚔️</h1>
-  <div class="subtitle">ジャンケンを包む白丸⚪ & 赤丸🔴 ｜ 未マークの手は敗北で消滅！</div>
+  <div class="subtitle">ジャンケンを囲む白丸⚪ & 赤丸🔴 ｜ 手も丸も盤面に残り続ける！</div>
 </header>
 
 <div class="app-container">
   <div class="game-area">
     <div class="status-bar">
-      <div id="senteTag" class="player-tag sente active">
-        <span>⚪ 先手</span><span id="senteRole" class="online-role-badge" style="display:none;">YOU</span>
-      </div>
+      <div id="senteTag" class="player-tag sente active"><span>⚪ 先手 (白丸)</span></div>
       <div style="font-size: 0.8rem; color: var(--text-muted);">VS</div>
-      <div id="goteTag" class="player-tag gote">
-        <span>🔴 後手</span><span id="goteRole" class="online-role-badge" style="display:none; background:#ef4444;">YOU</span>
-      </div>
+      <div id="goteTag" class="player-tag gote"><span>🔴 後手 (赤丸)</span></div>
     </div>
 
     <div id="messageBanner" class="message-banner">先手の手番: 配置する手を選んでください</div>
@@ -353,17 +298,17 @@
         <button class="hand-btn selected" data-hand="rock" onclick="selectHand('rock')">
           <span class="btn-icon">✊</span>
           <span class="btn-label">グー</span>
-          <span class="btn-direction">ナナメ</span>
+          <span class="btn-direction">ナナメ攻撃</span>
         </button>
         <button class="hand-btn" data-hand="scissors" onclick="selectHand('scissors')">
           <span class="btn-icon">✌️</span>
           <span class="btn-label">チョキ</span>
-          <span class="btn-direction">タテ</span>
+          <span class="btn-direction">タテ攻撃</span>
         </button>
         <button class="hand-btn" data-hand="paper" onclick="selectHand('paper')">
           <span class="btn-icon">🖐️</span>
           <span class="btn-label">パー</span>
-          <span class="btn-direction">ヨコ</span>
+          <span class="btn-direction">ヨコ攻撃</span>
         </button>
       </div>
     </div>
@@ -371,64 +316,44 @@
 
   <div class="sidebar">
     <div class="panel">
-      <div class="panel-title">🌐 対戦モード設定</div>
+      <div class="panel-title">⚙️ 対戦設定</div>
       <div class="form-group">
+        <label>対戦形式</label>
         <select id="gameMode" onchange="changeMode()">
-          <option value="online">🌐 遠隔オンライン対戦 (スマホ2台)</option>
-          <option value="pvp">📱 2人プレイ (1台で交代)</option>
+          <option value="pvp">📱 2人プレイ (1台で交代対戦)</option>
           <option value="vsAi">🤖 1人プレイ (vs AI)</option>
         </select>
       </div>
-
-      <div id="onlinePanel">
-        <div id="onlineCreateSection" style="display:flex; flex-direction:column; gap:6px;">
-          <button class="action-btn primary" onclick="createOnlineRoom()">🚪 部屋を作って対戦相手を招待</button>
-          <div style="text-align:center; font-size:0.72rem; color:var(--text-muted);">または</div>
-          <div style="display:flex; gap:4px;">
-            <input id="joinRoomInput" class="text-input" placeholder="部屋コード (例: 1234)" />
-            <button class="action-btn secondary" style="width: auto; margin-top:0; white-space:nowrap;" onclick="joinOnlineRoom()">参加</button>
-          </div>
-        </div>
-
-        <div id="onlineActiveRoomBox" class="room-box" style="display:none;">
-          <div>あなたの部屋コード:</div>
-          <div id="displayRoomCode" class="room-code-display">------</div>
-          <button class="action-btn secondary" onclick="copyInviteLink()">📋 招待リンクをコピーしてLINEで送る</button>
-          <div id="onlineStatusText" style="margin-top:6px; color:#fbbf24; font-size:0.7rem;">相手の参加を待っています...</div>
-        </div>
-      </div>
-
-      <div class="form-group" id="aiLevelGroup" style="display:none; margin-top:8px;">
-        <label>AI難易度</label>
+      <div class="form-group" id="aiLevelGroup" style="display:none;">
+        <label>AIの強さ</label>
         <select id="aiLevel">
           <option value="hard">上級 (戦略的)</option>
           <option value="normal">中級 (標準)</option>
           <option value="easy">初級 (おてがる)</option>
         </select>
       </div>
-
-      <button class="action-btn secondary" style="margin-top:8px;" onclick="resetGame(true)">🔄 盤面リセット</button>
+      <button class="action-btn primary" onclick="resetGame()">🔄 ゲームをリセット</button>
     </div>
 
     <div class="panel">
       <div class="panel-title">📖 ルール解説</div>
       <table class="rule-table">
         <thead>
-          <tr><th>手</th><th>攻撃方向</th><th>勝負のルール</th></tr>
+          <tr><th>手</th><th>攻撃射程</th><th>勝負のルール</th></tr>
         </thead>
         <tbody>
           <tr><td>✊ グー</td><td>ナナメ</td><td rowspan="3">
             <b>【勝負の結果】</b><br>
             ・勝つと<b>自分の丸（⚪/🔴）がジャンケンを包み込みます</b>！<br>
-            ・<b>赤丸・白丸の無い手は負けると消滅（マスが空白に）</b>！<br>
-            ・<b>丸で囲まれた手は消滅せず永続</b>します。
+            ・<b>手も丸も盤面に残り続け</b>、次回以降の対戦対象になります！<br>
+            ・負け・あいこでも手は盤面に残ります。
           </td></tr>
           <tr><td>✌️ チョキ</td><td>タテ</td></tr>
           <tr><td>🖐️ パー</td><td>ヨコ</td></tr>
         </tbody>
       </table>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-        ※丸で囲まれた手を<b>先に3つ並べた</b>プレイヤーの勝利！
+        ※丸で囲まれた手を<b>3つ連続で並べた</b>プレイヤーの勝利！
       </div>
     </div>
 
@@ -466,17 +391,17 @@
 
 <div id="victoryModal" class="modal-overlay">
   <div class="battle-card" style="border-color: #fbbf24; box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);">
-    <div id="victoryIcon" style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
+    <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
     <h2 id="victoryTitle" style="font-size: 1.4rem; color: #fbbf24; margin-bottom: 6px;">勝者決定！</h2>
     <p id="victoryDesc" style="font-size: 0.88rem; color: var(--text-main); margin-bottom: 14px; line-height: 1.4;"></p>
-    <button class="action-btn primary" onclick="closeVictoryModal(); resetGame(true);">もう一度遊ぶ</button>
+    <button class="action-btn primary" onclick="closeVictoryModal(); resetGame();">もう一度遊ぶ</button>
   </div>
 </div>
 
 <script>
   const HAND_NAMES = { rock: 'グー', scissors: 'チョキ', paper: 'パー' };
   const HAND_ICONS = { rock: '✊', scissors: '✌️', paper: '🖐️' };
-  const SENTE = 1, GOTE = 2;
+  const SENTE = 1, GOTE = 2; // 1: Sente (白丸⚪), 2: Gote (赤丸🔴)
 
   let soundEnabled = true, audioCtx = null;
   function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -505,17 +430,12 @@
   }
   function toggleSound() {
     soundEnabled = !soundEnabled;
-    document.getElementById('soundToggle').innerText = soundEnabled ? '🔊 ON' : '🔈 OFF';
+    document.getElementById('soundToggle').innerText = soundEnabled ? '🔊 サウンド: ON' : '🔈 サウンド: OFF';
   }
 
-  // --- 盤面データ構造 ---
   let board = Array(25).fill(null).map(() => ({ mark: null, hand: null }));
   let currentPlayer = SENTE, turnCount = 1, senteFirstTurnPlaced = 0;
   let selectedHand = 'rock', gameOver = false, awaitingTargetSelection = null, lastBattleResolveCallback = null;
-
-  // --- WebRTC PeerJS 通信対戦 ---
-  let peer = null, conn = null, myRole = null;
-  let currentRoomId = null;
 
   const boardEl = document.getElementById('board');
   function createBoardUI() {
@@ -539,15 +459,11 @@
 
   function changeMode() {
     const mode = document.getElementById('gameMode').value;
-    document.getElementById('onlinePanel').style.display = mode === 'online' ? 'block' : 'none';
     document.getElementById('aiLevelGroup').style.display = mode === 'vsAi' ? 'flex' : 'none';
-    myRole = null;
-    document.getElementById('senteRole').style.display = 'none';
-    document.getElementById('goteRole').style.display = 'none';
     resetGame();
   }
 
-  function resetGame(sync = false) {
+  function resetGame() {
     board = Array(25).fill(null).map(() => ({ mark: null, hand: null }));
     currentPlayer = SENTE; turnCount = 1; senteFirstTurnPlaced = 0;
     gameOver = false; awaitingTargetSelection = null;
@@ -555,61 +471,23 @@
     document.getElementById('victoryModal').classList.remove('active');
     document.getElementById('battleLog').innerHTML = '<div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>';
     renderBoard(); updateStatusUI(); playSound('click');
-
-    if (sync && conn && conn.open) {
-      conn.send({ type: 'RESET' });
-    }
-  }
-
-  function isMyTurn() {
-    const mode = document.getElementById('gameMode').value;
-    if (mode === 'pvp') return true;
-    if (mode === 'vsAi') return currentPlayer === SENTE;
-    if (mode === 'online') return myRole === currentPlayer;
-    return false;
   }
 
   function updateStatusUI() {
     document.getElementById('senteTag').classList.toggle('active', currentPlayer === SENTE && !gameOver);
     document.getElementById('goteTag').classList.toggle('active', currentPlayer === GOTE && !gameOver);
     const banner = document.getElementById('messageBanner');
-    banner.className = 'message-banner';
+    banner.classList.remove('target-mode');
 
     if (gameOver) { banner.innerText = 'ゲーム終了！'; return; }
 
-    const mode = document.getElementById('gameMode').value;
-
-    if (mode === 'online' && !conn) {
-      banner.innerText = '部屋を作成するかコードを入力して対戦を開始してください';
-      return;
-    }
-
     if (awaitingTargetSelection) {
-      if (isMyTurn()) {
-        banner.innerText = '💥 攻撃対象の相手の手をタップしてください！';
-        banner.classList.add('target-mode');
-      } else {
-        banner.innerText = '相手が対戦ターゲットを選択中...';
-        banner.classList.add('wait-mode');
-      }
+      banner.innerText = '💥 攻撃対象の相手の手を選択してください！';
+      banner.classList.add('target-mode');
       return;
     }
 
-    if (mode === 'online') {
-      if (myRole === currentPlayer) {
-        if (turnCount === 1 && senteFirstTurnPlaced < 2) {
-          banner.innerText = `【あなたの番 (先手⚪)】 1手ずつ配置してください (${senteFirstTurnPlaced + 1}/2マス目)`;
-        } else {
-          banner.innerText = `【あなたの番】 手を選んで空きマスに配置してください`;
-        }
-      } else {
-        banner.innerText = `相手の手番を待っています...`;
-        banner.classList.add('wait-mode');
-      }
-      return;
-    }
-
-    const pName = currentPlayer === SENTE ? '先手 (白丸⚪)' : (mode === 'vsAi' ? '後手 (AI 赤丸🔴)' : '後手 (赤丸🔴)');
+    const pName = currentPlayer === SENTE ? '先手 (白丸⚪)' : (document.getElementById('gameMode').value === 'vsAi' ? '後手 (AI 赤丸🔴)' : '後手 (赤丸🔴)');
     if (turnCount === 1 && senteFirstTurnPlaced < 2) {
       banner.innerText = `【先手 初手】 手を選んで配置してください (${senteFirstTurnPlaced + 1} / 2マス目)`;
     } else {
@@ -643,16 +521,12 @@
           `;
           wrap.appendChild(plain);
         }
+
         cellEl.appendChild(wrap);
-      } else if (data.mark !== null) {
-        const markDiv = document.createElement('div');
-        markDiv.className = `pure-mark ${data.mark === SENTE ? 'sente' : 'gote'}`;
-        markDiv.innerText = data.mark === SENTE ? '⚪' : '🔴';
-        cellEl.appendChild(markDiv);
       }
     }
 
-    if (awaitingTargetSelection && isMyTurn()) {
+    if (awaitingTargetSelection) {
       awaitingTargetSelection.candidateTargets.forEach(idx => boardEl.children[idx].classList.add('target-selectable'));
     }
   }
@@ -676,7 +550,7 @@
   }
 
   function onCellHover(index) {
-    if (gameOver || awaitingTargetSelection || board[index].hand !== null || !isMyTurn()) return;
+    if (gameOver || awaitingTargetSelection || board[index].hand !== null) return;
     clearHoverEffects();
     getAttackLineIndices(index, selectedHand).forEach(idx => boardEl.children[idx].classList.add('highlight-line'));
   }
@@ -686,26 +560,19 @@
   }
 
   function onCellClick(index) {
-    if (gameOver || !isMyTurn()) return;
+    if (gameOver) return;
 
     if (awaitingTargetSelection) {
       if (awaitingTargetSelection.candidateTargets.includes(index)) {
         const targetIdx = index, attackerIdx = awaitingTargetSelection.attackerIndex, hand = awaitingTargetSelection.hand;
         awaitingTargetSelection = null;
         renderBoard();
-        if (conn && conn.open) {
-          conn.send({ type: 'RESOLVE_BATTLE', attackerIdx, hand, targetIdx });
-        }
         resolveBattle(attackerIdx, hand, targetIdx);
       }
       return;
     }
 
-    if (board[index].hand !== null) return;
-
-    if (conn && conn.open) {
-      conn.send({ type: 'MOVE', index, hand: selectedHand });
-    }
+    if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) return;
     makeMove(index, selectedHand);
   }
 
@@ -764,74 +631,40 @@
   }
 
   function resolveBattle(attackerIndex, attackerHand, targetIndex) {
-    const defenderCell = board[targetIndex];
-    const defenderHand = defenderCell.hand.type;
-    const defenderPlayer = defenderCell.hand.player;
-    const defenderHasMark = defenderCell.mark !== null;
-
-    const attackerPlayer = currentPlayer;
+    const defenderHand = board[targetIndex].hand.type;
+    const attackerPlayer = currentPlayer, defenderPlayer = board[targetIndex].hand.player;
     const result = jankenCompare(attackerHand, defenderHand);
 
     showBattleModal(attackerPlayer, attackerHand, defenderPlayer, defenderHand, result, () => {
-      const pName = attackerPlayer === SENTE ? '先手' : '後手';
-      const defName = defenderPlayer === SENTE ? '先手' : '後手';
+      const pName = attackerPlayer === SENTE ? '先手' : '後手', defName = defenderPlayer === SENTE ? '先手' : '後手';
       const markIcon = attackerPlayer === SENTE ? '⚪' : '🔴';
 
-      if (result === 1) {
-        // 攻撃側が勝利
-        board[attackerIndex] = {
-          mark: attackerPlayer,
-          hand: { player: attackerPlayer, type: attackerHand }
-        };
+      board[attackerIndex].hand = { player: attackerPlayer, type: attackerHand };
 
-        if (!defenderHasMark) {
-          board[targetIndex] = { mark: null, hand: null };
-          logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれ、未マークの[${coordName(targetIndex)}]は消滅！`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
-        } else {
-          board[targetIndex] = { mark: defenderCell.mark, hand: null };
-          logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれ、[${coordName(targetIndex)}]の手は消滅（丸は防衛残留）`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
-        }
+      if (result === 1) {
+        board[attackerIndex].mark = attackerPlayer;
         playSound('win');
+        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]の手が${markIcon}で囲まれました（両者の手は残留）`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
 
       } else if (result === -1) {
-        // 攻撃側が敗北
-        board[attackerIndex] = { mark: null, hand: null };
         playSound('lose');
-        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${defName}の防衛成功！</b> 敗北した${pName}の手は消滅`, defenderPlayer === SENTE ? 'sente-win' : 'gote-win');
+        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${defName}の防衛！</b> 手は盤面に残留`, defenderPlayer === SENTE ? 'sente-win' : 'gote-win');
 
       } else {
-        // あいこ
-        board[attackerIndex].hand = { player: attackerPlayer, type: attackerHand };
         playSound('draw');
         logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>あいこ！</b> 両者の手が盤面に残留`);
       }
 
       renderBoard();
 
-      // 勝利判定
       const winningLine = checkWin(attackerPlayer);
       if (winningLine) { triggerVictory(attackerPlayer, winningLine); return; }
-
-      // 盤面満杯時の引き分け判定
-      if (isBoardFull()) {
-        triggerDraw();
-        return;
-      }
 
       finishTurn();
     });
   }
 
-  function isBoardFull() {
-    return board.every(cell => cell.hand !== null);
-  }
-
   function finishTurn() {
-    if (isBoardFull()) {
-      triggerDraw();
-      return;
-    }
-
     turnCount++; currentPlayer = currentPlayer === SENTE ? GOTE : SENTE;
     updateStatusUI(); checkAiTurn();
   }
@@ -873,23 +706,10 @@
     const wName = winner === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
     logEntry(`🎉 <b>${wName}の勝利！</b> 囲まれたジャンケンを3つ揃えて勝利しました！`, 'victory');
     setTimeout(() => {
-      document.getElementById('victoryIcon').innerText = '👑';
       document.getElementById('victoryTitle').innerText = `${wName} の完全勝利！`;
       document.getElementById('victoryDesc').innerText = `見事な戦略で5×5盤面に3つの囲み丸（${winner === SENTE ? '⚪' : '🔴'}）を揃えました！`;
       document.getElementById('victoryModal').classList.add('active');
     }, 800);
-  }
-
-  function triggerDraw() {
-    gameOver = true;
-    playSound('draw');
-    logEntry(`🤝 <b>引き分け（ドロー）！</b> 25マスすべてが埋まりました。`);
-    setTimeout(() => {
-      document.getElementById('victoryIcon').innerText = '🤝';
-      document.getElementById('victoryTitle').innerText = `引き分け (Draw)`;
-      document.getElementById('victoryDesc').innerText = `盤面の25マスすべてがジャンケンで埋まりました！互角の好勝負でした。`;
-      document.getElementById('victoryModal').classList.add('active');
-    }, 600);
   }
 
   function showBattleModal(atkPlayer, atkHand, defPlayer, defHand, result, onResolve) {
@@ -909,10 +729,10 @@
     const detailText = document.getElementById('battleDetailText');
     if (result === 1) {
       resText.className = 'battle-result-text win-text'; resText.innerText = 'WIN! 攻撃側の勝利！';
-      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。相手の手は消滅します。`;
+      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。手は両者とも盤面に残り続けます。`;
     } else if (result === -1) {
       resText.className = 'battle-result-text lose-text'; resText.innerText = 'LOSE... 守備側の防衛！';
-      detailText.innerText = '敗北した攻撃側の手は消滅します。';
+      detailText.innerText = '丸は獲得できませんが、手は盤面に残り続けます。';
     } else {
       resText.className = 'battle-result-text draw-text'; resText.innerText = 'DRAW (あいこ)';
       detailText.innerText = '両者の手が盤面に残り続けます。';
@@ -998,67 +818,38 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  // --- WebRTC PeerJS 通信対戦 ---
-  function generateShortCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
-
-  function initPeer(customId, onReady) {
-    if (peer) peer.destroy();
-    peer = new Peer(customId);
-    peer.on('open', (id) => { if (onReady) onReady(id); });
-    peer.on('connection', (incomingConn) => {
-      conn = incomingConn;
-      setupConnectionHandlers();
-      myRole = SENTE;
-      document.getElementById('senteRole').style.display = 'inline-block';
-      document.getElementById('goteRole').style.display = 'none';
-      document.getElementById('onlineStatusText').innerText = '✅ 対戦相手が接続しました！対戦開始！';
-      playSound('place');
-      updateStatusUI();
+  let confettiAnimId = null;
+  const confettiCanvas = document.getElementById('confetti-canvas'), ctx = confettiCanvas.getContext('2d');
+  let particles = [];
+  function startConfetti() {
+    confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight;
+    particles = [];
+    const colors = ['#ffffff', '#ef4444', '#f59e0b', '#10b981', '#38bdf8'];
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        x: Math.random() * confettiCanvas.width, y: Math.random() * -confettiCanvas.height,
+        size: Math.random() * 8 + 4, color: colors[Math.floor(Math.random() * colors.length)],
+        vx: Math.random() * 4 - 2, vy: Math.random() * 4 + 3, rot: Math.random() * 360, vRot: Math.random() * 10 - 5
+      });
+    }
+    animateConfetti();
+  }
+  function animateConfetti() {
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vRot;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size); ctx.restore();
     });
-    peer.on('error', (err) => {
-      console.error(err);
-      alert('通信接続エラーが発生しました。部屋コードを確認して再度お試しください。');
-    });
+    confettiAnimId = requestAnimationFrame(animateConfetti);
+  }
+  function stopConfetti() {
+    if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
   }
 
-  function createOnlineRoom() {
-    const code = generateShortCode();
-    currentRoomId = 'jtt-' + code;
-    initPeer(currentRoomId, (id) => {
-      document.getElementById('onlineCreateSection').style.display = 'none';
-      document.getElementById('onlineActiveRoomBox').style.display = 'block';
-      document.getElementById('displayRoomCode').innerText = code;
-      document.getElementById('onlineStatusText').innerText = '相手の参加を待っています...';
-    });
-  }
-
-  function copyInviteLink() {
-    const code = document.getElementById('displayRoomCode').innerText;
-    const url = window.location.origin + window.location.pathname + '?room=' + code;
-    navigator.clipboard.writeText(`ジャンケン三目並べで対戦しよう！\n部屋コード: ${code}\n参加リンク: ${url}`).then(() => {
-      alert('招待メッセージをクリップボードにコピーしました！LINE等に貼り付けて送信してください。');
-    }).catch(() => {
-      prompt('以下の招待URLをコピーしてください:', url);
-    });
-  }
-
-  function joinOnlineRoom(codeToJoin) {
-    const code = codeToJoin || document.getElementById('joinRoomInput').value.trim();
-    if (!code) { alert('部屋コードを入力してください'); return; }
-    const targetRoomId = 'jtt-' + code;
-    initPeer(null, () => {
-      conn = peer.connect(targetRoomId);
-      setupConnectionHandlers();
-      myRole = GOTE;
-      document.getElementById('goteRole').style.display = 'inline-block';
-      document.getElementById('senteRole').style.display = 'none';
-      document.getElementById('onlineCreateSection').style.display = 'none';
-      document.getElementById('onlineActiveRoomBox').style.display = 'block';
-      document.getElementById('displayRoomCode').innerText = code;
-      document.getElementById('onlineStatusText').innerText = '✅ 部屋に接続完了！対戦開始！';
-      updateStatusUI();
-    });
-  }
-
-  function setupConnectionHandlers() {
-    conn.on('data', (data
+  createBoardUI();
+  resetGame();
+</script>
+</body>
+</html>
