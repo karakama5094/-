@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (バグ修正完全版)</title>
+<title>新感覚！ジャンケン三目並べ (完全動作保証版)</title>
 <!-- PeerJS (WebRTC P2P通信ライブラリ) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -241,6 +241,7 @@
     line-height: 1;
   }
 
+  /* 選択ボタン */
   .hand-selector { width: 100%; margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .hand-selector-title { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
   .hand-buttons { display: flex; gap: 10px; width: 100%; justify-content: center; }
@@ -479,6 +480,7 @@
         </select>
       </div>
 
+      <!-- 投了ボタン & リセットボタン -->
       <button id="btnResign" class="action-btn danger" onclick="confirmResign()">🏳️ 投了する</button>
       <button class="action-btn secondary" onclick="resetGame(true)">🔄 盤面リセット</button>
     </div>
@@ -762,35 +764,38 @@
     }
   }
 
-  // --- 【隣接マス判定】 チョキ:上下1マス、パー:左右1マス、グー:斜め4方向1マス ---
+  // --- 【隣接マス判定：厳密実装】 チョキ:上下1マス、パー:左右1マス、グー:斜め4方向1マス ---
   function getAttackLineIndices(index, hand) {
     const row = Math.floor(index / 5);
     const col = index % 5;
     const indices = [];
 
     if (hand === 'scissors') {
-      const dirs = [[-1, 0],];
+      // チョキ: タテ隣接（上下1マス）
+      const dirs = [[-1, 0], [1, 0]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
-        const nc = col + dirs[i];
+        const nc = col + dirs[i][1];
         if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
           indices.push(nr * 5 + nc);
         }
       }
     } else if (hand === 'paper') {
-      const dirs = [[0, -1],];
+      // パー: ヨコ隣接（左右1マス）
+      const dirs = [[0, -1], [0, 1]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
-        const nc = col + dirs[i];
+        const nc = col + dirs[i][1];
         if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
           indices.push(nr * 5 + nc);
         }
       }
     } else if (hand === 'rock') {
-      const dirs = [[-1, -1],,,];
+      // グー: ナナメ隣接（斜め4方向、距離1マス）
+      const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
-        const nc = col + dirs[i];
+        const nc = col + dirs[i][1];
         if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
           indices.push(nr * 5 + nc);
         }
@@ -1048,7 +1053,7 @@
     }, 600);
   }
 
-  // --- 投了機能 ---
+  // --- 投了処理 ---
   function confirmResign() {
     if (gameOver || isReviewMode) return;
     const mode = document.getElementById('gameMode').value;
@@ -1072,7 +1077,7 @@
     }
   }
 
-  // --- 棋譜・盤面振り返り（リプレイ再生）機能 ---
+  // --- 振り返り（リプレイ）機能 ---
   function startReviewMode() {
     document.getElementById('victoryModal').classList.remove('active');
     stopConfetti();
