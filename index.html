@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (マーク＆手永続版)</title>
+<title>新感覚！ジャンケン三目並べ (隣接マス対戦版)</title>
 <!-- PeerJS (WebRTC P2P通信ライブラリ) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -157,7 +157,7 @@
     background: var(--cell-hover);
     border-color: rgba(255, 255, 255, 0.3);
   }
-  .cell.highlight-line { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; }
+  .cell.highlight-line { background: rgba(56, 189, 248, 0.25); border-color: #38bdf8; }
   .cell.target-selectable {
     background: rgba(239, 68, 68, 0.35) !important;
     border: 2px dashed #ef4444 !important;
@@ -182,7 +182,6 @@
     position: relative;
   }
 
-  /* 未勝利の手（丸の囲みなし） */
   .plain-hand {
     display: flex;
     flex-direction: column;
@@ -322,7 +321,7 @@
 
 <header>
   <h1>⚔️ ジャンケン三目並べ ⚔️</h1>
-  <div class="subtitle">白丸⚪・赤丸🔴とジャンケンの手は永続 ｜ 未マークの手は敗北で消滅！</div>
+  <div class="subtitle">対戦は「隣接マスのみ」！ 一つ飛ばしは対戦不可の心理戦略ゲーム</div>
 </header>
 
 <div class="app-container">
@@ -349,17 +348,17 @@
         <button class="hand-btn selected" data-hand="rock" onclick="selectHand('rock')">
           <span class="btn-icon">✊</span>
           <span class="btn-label">グー</span>
-          <span class="btn-direction">ナナメ</span>
+          <span class="btn-direction">ナナメ隣接</span>
         </button>
         <button class="hand-btn" data-hand="scissors" onclick="selectHand('scissors')">
           <span class="btn-icon">✌️</span>
           <span class="btn-label">チョキ</span>
-          <span class="btn-direction">タテ</span>
+          <span class="btn-direction">タテ隣接</span>
         </button>
         <button class="hand-btn" data-hand="paper" onclick="selectHand('paper')">
           <span class="btn-icon">🖐️</span>
           <span class="btn-label">パー</span>
-          <span class="btn-direction">ヨコ</span>
+          <span class="btn-direction">ヨコ隣接</span>
         </button>
       </div>
     </div>
@@ -410,17 +409,18 @@
       <div class="panel-title">📖 ルール解説</div>
       <table class="rule-table">
         <thead>
-          <tr><th>手</th><th>攻撃方向</th><th>勝負のルール</th></tr>
+          <tr><th>手</th><th>攻撃射程 (隣接のみ)</th><th>勝負のルール</th></tr>
         </thead>
         <tbody>
-          <tr><td>✊ グー</td><td>ナナメ</td><td rowspan="3">
+          <tr><td>✊ グー</td><td>ナナメ隣 (最大4マス)</td><td rowspan="3">
             <b>【勝負の結果】</b><br>
             ・勝つと<b>自分の丸（⚪/🔴）がジャンケンを包み込みます</b>！<br>
-            ・<b>マーク済みの手はマークも手も消滅せず永続</b>し対戦継続！<br>
-            ・<b>未マークの手のみ負けると消滅</b>（マスが空白に）します。
+            ・<b>マーク済みの手はマークも手も永続</b>し対戦継続！<br>
+            ・<b>未マークの手のみ負けると消滅</b>（マスが空白に）します。<br>
+            ※一つ飛ばしのマスとは対戦できません。
           </td></tr>
-          <tr><td>✌️ チョキ</td><td>タテ</td></tr>
-          <tr><td>🖐️ パー</td><td>ヨコ</td></tr>
+          <tr><td>✌️ チョキ</td><td>タテ隣 (上下2マス)</td></tr>
+          <tr><td>🖐️ パー</td><td>ヨコ隣 (左右2マス)</td></tr>
         </tbody>
       </table>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
@@ -582,7 +582,7 @@
 
     if (awaitingTargetSelection) {
       if (isMyTurn()) {
-        banner.innerText = '💥 攻撃対象の相手の手をタップしてください！';
+        banner.innerText = '💥 攻撃対象の相手の手（隣接マス）をタップしてください！';
         banner.classList.add('target-mode');
       } else {
         banner.innerText = '相手が対戦ターゲットを選択中...';
@@ -626,13 +626,11 @@
         wrap.className = 'hand-wrapper';
 
         if (data.mark !== null) {
-          // 白丸または赤丸で囲まれた手
           const ring = document.createElement('div');
           ring.className = `encircled-ring ${data.mark === SENTE ? 'sente' : 'gote'}`;
           ring.innerHTML = `<span class="hand-icon">${HAND_ICONS[data.hand.type]}</span>`;
           wrap.appendChild(ring);
         } else {
-          // 未マークの手
           const plain = document.createElement('div');
           plain.className = `plain-hand ${data.hand.player === SENTE ? 'sente' : 'gote'}`;
           plain.innerHTML = `
@@ -650,19 +648,30 @@
     }
   }
 
+  // --- 【隣接マス限定】 チョキ:上下1マス、パー:左右1マス、グー:斜め4方向1マス ---
   function getAttackLineIndices(index, hand) {
     const row = Math.floor(index / 5), col = index % 5, indices = [];
+
     if (hand === 'scissors') {
-      for (let r = 0; r < 5; r++) if (r !== row) indices.push(r * 5 + col);
+      // チョキ: タテ隣（上下1マスのみ）
+      const dirs = [[-1, 0],];
+      for (let [dr, dc] of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) indices.push(nr * 5 + nc);
+      }
     } else if (hand === 'paper') {
-      for (let c = 0; c < 5; c++) if (c !== col) indices.push(row * 5 + c);
+      // パー: ヨコ隣（左右1マスのみ）
+      const dirs = [[0, -1],];
+      for (let [dr, dc] of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) indices.push(nr * 5 + nc);
+      }
     } else if (hand === 'rock') {
-      for (let d = -4; d <= 4; d++) {
-        if (d === 0) continue;
-        const nr1 = row + d, nc1 = col + d;
-        if (nr1 >= 0 && nr1 < 5 && nc1 >= 0 && nc1 < 5) indices.push(nr1 * 5 + nc1);
-        const nr2 = row + d, nc2 = col - d;
-        if (nr2 >= 0 && nr2 < 5 && nc2 >= 0 && nc2 < 5) indices.push(nr2 * 5 + nc2);
+      // グー: ナナメ隣（斜め4方向、距離1マスのみ）
+      const dirs = [[-1, -1],,,];
+      for (let [dr, dc] of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) indices.push(nr * 5 + nc);
       }
     }
     return indices;
@@ -729,7 +738,7 @@
     if (opponentTargets.length === 0) {
       board[index].hand = { player: currentPlayer, type: hand };
       const pName = currentPlayer === SENTE ? '先手' : '後手';
-      logEntry(`${pName} が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (対戦なし)`);
+      logEntry(`${pName} が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (隣接対戦なし)`);
       renderBoard(); finishTurn();
     } else if (opponentTargets.length === 1) {
       resolveBattle(index, hand, opponentTargets[0]);
@@ -772,15 +781,13 @@
 
       if (result === 1) {
         // --- 攻撃側が勝利 ---
-        // 1. 攻撃側の手は丸で囲まれて確定
         board[attackerIndex] = {
           mark: attackerPlayer,
           hand: { player: attackerPlayer, type: attackerHand }
         };
 
-        // 2. 守備側の手：
         if (!defenderHasMark) {
-          // 未マークの手は敗北により消滅！
+          // 未マークの手は敗北により消滅
           board[targetIndex] = { mark: null, hand: null };
           logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれ、未マークの[${coordName(targetIndex)}]は消滅！`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
         } else {
@@ -789,13 +796,12 @@
             mark: defenderCell.mark,
             hand: { player: defenderPlayer, type: defenderHand }
           };
-          logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれました（${defName}のマーク済み手はそのまま盤面に残留し対戦継続）`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
+          logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれました（${defName}のマーク済み手は残留し対戦継続）`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
         }
         playSound('win');
 
       } else if (result === -1) {
         // --- 攻撃側が敗北 ---
-        // 攻撃側は未マークの手のため、負けたら消滅！
         board[attackerIndex] = { mark: null, hand: null };
         playSound('lose');
         logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${defName}の防衛成功！</b> 敗北した${pName}の未マーク手は消滅`, defenderPlayer === SENTE ? 'sente-win' : 'gote-win');
@@ -910,7 +916,7 @@
     const detailText = document.getElementById('battleDetailText');
     if (result === 1) {
       resText.className = 'battle-result-text win-text'; resText.innerText = 'WIN! 攻撃側の勝利！';
-      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。マーク済みの相手手は残留し、未マーク手は消滅します。`;
+      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。未マークの相手手は消滅します。`;
     } else if (result === -1) {
       resText.className = 'battle-result-text lose-text'; resText.innerText = 'LOSE... 守備側の防衛！';
       detailText.innerText = '敗北した未マークの攻撃手は消滅します。';
@@ -999,7 +1005,7 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  // --- WebRTC PeerJS Online Multiplayer Implementation ---
+  // --- WebRTC PeerJS オンライン対戦 ---
   function generateShortCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
 
   function initPeer(customId, onReady) {
