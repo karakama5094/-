@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (先手後手ランダム決定版)</title>
+<title>新感覚！ジャンケン三目並べ (AI手番ランダム完全対応版)</title>
 <!-- PeerJS (WebRTC P2P通信ライブラリ) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -448,7 +448,7 @@
       <div class="form-group">
         <label>対戦モード</label>
         <select id="gameMode" onchange="changeMode()">
-          <option value="vsAi">🤖 1人プレイ (vs AI)</option>
+          <option value="vsAi" selected>🤖 1人プレイ (vs AI)</option>
           <option value="online">🌐 遠隔オンライン対戦 (スマホ2台)</option>
           <option value="pvp">📱 2人プレイ (1台で交代)</option>
         </select>
@@ -458,9 +458,9 @@
       <div class="form-group" id="turnSettingGroup">
         <label>🎲 先手・後手の決め方</label>
         <select id="turnSetting" onchange="resetGame(true)">
-          <option value="random">🎲 ランダムで決定 (推奨)</option>
+          <option value="random" selected>🎲 ランダムで決定 (50% / 50%)</option>
           <option value="sente">⚪ あなたが先手 (白丸)</option>
-          <option value="gote">🔴 あなたが後手 (赤丸)</option>
+          <option value="gote">🔴 AIが先手 (あなたは後手・赤丸)</option>
         </select>
       </div>
 
@@ -492,7 +492,7 @@
       </div>
 
       <button id="btnResign" class="action-btn danger" onclick="confirmResign()">🏳️ 投了する</button>
-      <button class="action-btn secondary" onclick="resetGame(true)">🔄 ゲームを再スタート</button>
+      <button class="action-btn primary" style="margin-top:4px;" onclick="resetGame(true)">🎲 振り駒してゲーム開始</button>
     </div>
 
     <div class="panel">
@@ -559,7 +559,7 @@
     <p id="victoryDesc" style="font-size: 0.88rem; color: var(--text-main); margin-bottom: 14px; line-height: 1.4;"></p>
     <div style="display:flex; flex-direction:column; gap:6px;">
       <button class="action-btn info" onclick="startReviewMode()">🔍 盤面を振り返る (リプレイ)</button>
-      <button class="action-btn primary" onclick="closeVictoryModal(); resetGame(true);">🔄 もう一度遊ぶ</button>
+      <button class="action-btn primary" onclick="closeVictoryModal(); resetGame(true);">🔄 振り駒してもう一度遊ぶ</button>
     </div>
   </div>
 </div>
@@ -648,7 +648,7 @@
     const mode = document.getElementById('gameMode').value;
     document.getElementById('onlinePanel').style.display = mode === 'online' ? 'block' : 'none';
     document.getElementById('aiLevelGroup').style.display = mode === 'vsAi' ? 'flex' : 'none';
-    document.getElementById('turnSettingGroup').style.display = mode === 'pvp' ? 'none' : 'flex';
+    document.getElementById('turnSettingGroup').style.display = mode === 'vsAi' ? 'flex' : 'none';
     myRole = null;
     resetGame();
   }
@@ -661,7 +661,9 @@
     if (mode === 'pvp') {
       userPlayer = SENTE;
       document.getElementById('senteRole').innerText = 'P1';
+      document.getElementById('senteRole').style.background = '#3b82f6';
       document.getElementById('goteRole').innerText = 'P2';
+      document.getElementById('goteRole').style.background = '#ef4444';
       return;
     }
 
@@ -707,8 +709,11 @@
     const log = document.getElementById('battleLog');
     
     if (mode === 'vsAi') {
-      const uName = userPlayer === SENTE ? 'あなた（先手・白丸⚪）' : 'AI（先手・白丸⚪）';
-      log.innerHTML = `<div class="log-entry">🎲 <b>手番決定:</b> ${uName} から開始します。</div>`;
+      if (userPlayer === SENTE) {
+        log.innerHTML = `<div class="log-entry">🎲 <b>振り駒結果:</b> あなたが【先手（白丸⚪）】になりました！好きな2マスに手を配置してください。</div>`;
+      } else {
+        log.innerHTML = `<div class="log-entry">🎲 <b>振り駒結果:</b> AIが【先手（白丸⚪）】になりました！AIが初手2手を配置します。</div>`;
+      }
     } else {
       log.innerHTML = '<div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>';
     }
@@ -780,10 +785,16 @@
         if (turnCount === 1 && senteFirstTurnPlaced < 2) {
           banner.innerText = `【あなたの番 (先手⚪)】 手を選んで配置してください (${senteFirstTurnPlaced + 1}/2マス目)`;
         } else {
-          banner.innerText = `【あなたの番】 手を選んで空きマスに配置してください`;
+          const markIcon = userPlayer === SENTE ? '白丸⚪' : '赤丸🔴';
+          banner.innerText = `【あなたの番 (${markIcon})】 手を選んで空きマスに配置してください`;
         }
       } else {
-        banner.innerText = `AIが考え中...`;
+        if (turnCount === 1 && senteFirstTurnPlaced < 2) {
+          banner.innerText = `🤖 AI (先手⚪) が初手を配置中... (${senteFirstTurnPlaced + 1}/2マス目)`;
+        } else {
+          const aiMark = userPlayer === SENTE ? '赤丸🔴' : '白丸⚪';
+          banner.innerText = `🤖 AI (${aiMark}) が考え中...`;
+        }
         banner.classList.add('wait-mode');
       }
       return;
