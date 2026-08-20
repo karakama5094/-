@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (完全動作保証版)</title>
+<title>新感覚！ジャンケン三目並べ (先手後手ランダム決定版)</title>
 <!-- PeerJS (WebRTC P2P通信ライブラリ) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -77,7 +77,7 @@
   .player-tag.gote { color: #ef4444; }
   .player-tag.active { background: rgba(255, 255, 255, 0.15); box-shadow: 0 0 12px currentColor; }
 
-  .online-role-badge {
+  .role-indicator {
     font-size: 0.68rem;
     padding: 2px 6px;
     border-radius: 4px;
@@ -385,22 +385,22 @@
 
 <header>
   <h1>⚔️ ジャンケン三目並べ ⚔️</h1>
-  <div class="subtitle">隣接対戦 ＆ マーク永続 ｜ 投了・棋譜振り返り機能搭載！</div>
+  <div class="subtitle">先手後手ランダム決定 ＆ 隣接対戦 ＆ 棋譜振り返り対応！</div>
 </header>
 
 <div class="app-container">
   <div class="game-area">
     <div class="status-bar">
       <div id="senteTag" class="player-tag sente active">
-        <span>⚪ 先手</span><span id="senteRole" class="online-role-badge" style="display:none;">YOU</span>
+        <span>⚪ 先手</span><span id="senteRole" class="role-indicator">YOU</span>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted);">VS</div>
       <div id="goteTag" class="player-tag gote">
-        <span>🔴 後手</span><span id="goteRole" class="online-role-badge" style="display:none; background:#ef4444;">YOU</span>
+        <span>🔴 後手</span><span id="goteRole" class="role-indicator" style="background:#ef4444;">AI</span>
       </div>
     </div>
 
-    <div id="messageBanner" class="message-banner">先手の手番: 配置する手を選んでください</div>
+    <div id="messageBanner" class="message-banner">ゲーム開始</div>
 
     <div class="board-wrapper">
       <div id="board" class="board"></div>
@@ -446,14 +446,25 @@
     <div class="panel">
       <div class="panel-title">🌐 対戦設定 & 操作</div>
       <div class="form-group">
+        <label>対戦モード</label>
         <select id="gameMode" onchange="changeMode()">
+          <option value="vsAi">🤖 1人プレイ (vs AI)</option>
           <option value="online">🌐 遠隔オンライン対戦 (スマホ2台)</option>
           <option value="pvp">📱 2人プレイ (1台で交代)</option>
-          <option value="vsAi">🤖 1人プレイ (vs AI)</option>
         </select>
       </div>
 
-      <div id="onlinePanel">
+      <!-- 先手・後手の決め方設定 -->
+      <div class="form-group" id="turnSettingGroup">
+        <label>🎲 先手・後手の決め方</label>
+        <select id="turnSetting" onchange="resetGame(true)">
+          <option value="random">🎲 ランダムで決定 (推奨)</option>
+          <option value="sente">⚪ あなたが先手 (白丸)</option>
+          <option value="gote">🔴 あなたが後手 (赤丸)</option>
+        </select>
+      </div>
+
+      <div id="onlinePanel" style="display:none;">
         <div id="onlineCreateSection" style="display:flex; flex-direction:column; gap:6px;">
           <button class="action-btn primary" onclick="createOnlineRoom()">🚪 部屋を作って対戦相手を招待</button>
           <div style="text-align:center; font-size:0.72rem; color:var(--text-muted);">または</div>
@@ -471,7 +482,7 @@
         </div>
       </div>
 
-      <div class="form-group" id="aiLevelGroup" style="display:none; margin-top:8px;">
+      <div class="form-group" id="aiLevelGroup">
         <label>AI難易度</label>
         <select id="aiLevel">
           <option value="hard">上級 (戦略的)</option>
@@ -480,9 +491,8 @@
         </select>
       </div>
 
-      <!-- 投了ボタン & リセットボタン -->
       <button id="btnResign" class="action-btn danger" onclick="confirmResign()">🏳️ 投了する</button>
-      <button class="action-btn secondary" onclick="resetGame(true)">🔄 盤面リセット</button>
+      <button class="action-btn secondary" onclick="resetGame(true)">🔄 ゲームを再スタート</button>
     </div>
 
     <div class="panel">
@@ -511,7 +521,7 @@
     <div class="panel">
       <div class="panel-title">📜 対戦履歴</div>
       <div id="battleLog" class="log-container">
-        <div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>
+        <div class="log-entry">ゲーム開始</div>
       </div>
     </div>
   </div>
@@ -557,7 +567,7 @@
 <script>
   const HAND_NAMES = { rock: 'グー', scissors: 'チョキ', paper: 'パー' };
   const HAND_ICONS = { rock: '✊', scissors: '✌️', paper: '🖐️' };
-  const SENTE = 1, GOTE = 2;
+  const SENTE = 1, GOTE = 2; // 1: Sente (白丸⚪), 2: Gote (赤丸🔴)
 
   let soundEnabled = true, audioCtx = null;
   function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -593,6 +603,9 @@
   let board = Array(25).fill(null).map(() => ({ mark: null, hand: null }));
   let currentPlayer = SENTE, turnCount = 1, senteFirstTurnPlaced = 0;
   let selectedHand = 'rock', gameOver = false, awaitingTargetSelection = null, lastBattleResolveCallback = null;
+
+  // プレイヤーの手番割り当て: userPlayer (1: Sente ⚪, 2: Gote 🔴)
+  let userPlayer = SENTE;
 
   // --- 棋譜・履歴記録（振り返り用） ---
   let historyRecords = [];
@@ -635,10 +648,44 @@
     const mode = document.getElementById('gameMode').value;
     document.getElementById('onlinePanel').style.display = mode === 'online' ? 'block' : 'none';
     document.getElementById('aiLevelGroup').style.display = mode === 'vsAi' ? 'flex' : 'none';
+    document.getElementById('turnSettingGroup').style.display = mode === 'pvp' ? 'none' : 'flex';
     myRole = null;
-    document.getElementById('senteRole').style.display = 'none';
-    document.getElementById('goteRole').style.display = 'none';
     resetGame();
+  }
+
+  // --- 手番（先手・後手）の決定 ---
+  function decideTurnRoles() {
+    const mode = document.getElementById('gameMode').value;
+    const turnSetting = document.getElementById('turnSetting').value;
+
+    if (mode === 'pvp') {
+      userPlayer = SENTE;
+      document.getElementById('senteRole').innerText = 'P1';
+      document.getElementById('goteRole').innerText = 'P2';
+      return;
+    }
+
+    if (mode === 'vsAi') {
+      if (turnSetting === 'random') {
+        userPlayer = Math.random() < 0.5 ? SENTE : GOTE;
+      } else if (turnSetting === 'sente') {
+        userPlayer = SENTE;
+      } else {
+        userPlayer = GOTE;
+      }
+
+      if (userPlayer === SENTE) {
+        document.getElementById('senteRole').innerText = 'YOU';
+        document.getElementById('senteRole').style.background = '#3b82f6';
+        document.getElementById('goteRole').innerText = 'AI';
+        document.getElementById('goteRole').style.background = '#64748b';
+      } else {
+        document.getElementById('senteRole').innerText = 'AI';
+        document.getElementById('senteRole').style.background = '#64748b';
+        document.getElementById('goteRole').innerText = 'YOU';
+        document.getElementById('goteRole').style.background = '#3b82f6';
+      }
+    }
   }
 
   function resetGame(sync = false) {
@@ -648,14 +695,24 @@
     historyRecords = [];
     isReviewMode = false;
 
+    decideTurnRoles();
+
     document.getElementById('battleModal').classList.remove('active');
     document.getElementById('victoryModal').classList.remove('active');
     document.getElementById('reviewControls').classList.remove('active');
     document.getElementById('handSelectorSection').style.display = 'flex';
     document.getElementById('btnResign').disabled = false;
-    document.getElementById('battleLog').innerHTML = '<div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>';
+
+    const mode = document.getElementById('gameMode').value;
+    const log = document.getElementById('battleLog');
     
-    // 初期状態の記録
+    if (mode === 'vsAi') {
+      const uName = userPlayer === SENTE ? 'あなた（先手・白丸⚪）' : 'AI（先手・白丸⚪）';
+      log.innerHTML = `<div class="log-entry">🎲 <b>手番決定:</b> ${uName} から開始します。</div>`;
+    } else {
+      log.innerHTML = '<div class="log-entry">ゲーム開始。先手（白丸⚪）の手番です。</div>';
+    }
+    
     recordHistory('ゲーム開始（盤面はすべて空欄）');
 
     renderBoard(); updateStatusUI(); playSound('click');
@@ -663,13 +720,15 @@
     if (sync && conn && conn.open) {
       conn.send({ type: 'RESET' });
     }
+
+    checkAiTurn();
   }
 
   function isMyTurn() {
     if (isReviewMode) return false;
     const mode = document.getElementById('gameMode').value;
     if (mode === 'pvp') return true;
-    if (mode === 'vsAi') return currentPlayer === SENTE;
+    if (mode === 'vsAi') return currentPlayer === userPlayer;
     if (mode === 'online') return myRole === currentPlayer;
     return false;
   }
@@ -716,7 +775,22 @@
       return;
     }
 
-    const pName = currentPlayer === SENTE ? '先手 (白丸⚪)' : (mode === 'vsAi' ? '後手 (AI 赤丸🔴)' : '後手 (赤丸🔴)');
+    if (mode === 'vsAi') {
+      if (currentPlayer === userPlayer) {
+        if (turnCount === 1 && senteFirstTurnPlaced < 2) {
+          banner.innerText = `【あなたの番 (先手⚪)】 手を選んで配置してください (${senteFirstTurnPlaced + 1}/2マス目)`;
+        } else {
+          banner.innerText = `【あなたの番】 手を選んで空きマスに配置してください`;
+        }
+      } else {
+        banner.innerText = `AIが考え中...`;
+        banner.classList.add('wait-mode');
+      }
+      return;
+    }
+
+    // 2P Local
+    const pName = currentPlayer === SENTE ? '先手 (P1・白丸⚪)' : '後手 (P2・赤丸🔴)';
     if (turnCount === 1 && senteFirstTurnPlaced < 2) {
       banner.innerText = `【先手 初手】 手を選んで配置してください (${senteFirstTurnPlaced + 1} / 2マス目)`;
     } else {
@@ -771,7 +845,6 @@
     const indices = [];
 
     if (hand === 'scissors') {
-      // チョキ: タテ隣接（上下1マス）
       const dirs = [[-1, 0], [1, 0]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
@@ -781,7 +854,6 @@
         }
       }
     } else if (hand === 'paper') {
-      // パー: ヨコ隣接（左右1マス）
       const dirs = [[0, -1], [0, 1]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
@@ -791,7 +863,6 @@
         }
       }
     } else if (hand === 'rock') {
-      // グー: ナナメ隣接（斜め4方向、距離1マス）
       const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
       for (let i = 0; i < dirs.length; i++) {
         const nr = row + dirs[i][0];
@@ -846,7 +917,8 @@
     if (turnCount === 1 && currentPlayer === SENTE) {
       board[index].hand = { player: SENTE, type: hand };
       senteFirstTurnPlaced++;
-      const desc = `先手 が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (${senteFirstTurnPlaced}/2)`;
+      const pName = (document.getElementById('gameMode').value === 'vsAi' && userPlayer === GOTE) ? 'AI (先手)' : '先手';
+      const desc = `${pName} が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (${senteFirstTurnPlaced}/2)`;
       logEntry(desc);
       recordHistory(desc, index);
       renderBoard();
@@ -855,6 +927,7 @@
         currentPlayer = GOTE; turnCount = 2; updateStatusUI(); checkAiTurn();
       } else {
         updateStatusUI();
+        checkAiTurn();
       }
       return;
     }
@@ -867,7 +940,7 @@
 
     if (opponentTargets.length === 0) {
       board[index].hand = { player: currentPlayer, type: hand };
-      const pName = currentPlayer === SENTE ? '先手' : '後手';
+      const pName = (document.getElementById('gameMode').value === 'vsAi') ? (currentPlayer === userPlayer ? 'あなた' : 'AI') : (currentPlayer === SENTE ? '先手' : '後手');
       const desc = `${pName} が [${coordName(index)}] に ${HAND_ICONS[hand]} ${HAND_NAMES[hand]} を配置 (隣接対戦なし)`;
       logEntry(desc);
       recordHistory(desc, index);
@@ -875,7 +948,7 @@
     } else if (opponentTargets.length === 1) {
       resolveBattle(index, hand, opponentTargets[0]);
     } else {
-      if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) {
+      if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer !== userPlayer) {
         const chosen = chooseBestAiTarget(opponentTargets, hand);
         resolveBattle(index, hand, chosen);
       } else {
@@ -907,8 +980,8 @@
     const result = jankenCompare(attackerHand, defenderHand);
 
     showBattleModal(attackerPlayer, attackerHand, defenderPlayer, defenderHand, result, () => {
-      const pName = attackerPlayer === SENTE ? '先手' : '後手';
-      const defName = defenderPlayer === SENTE ? '先手' : '後手';
+      const pName = (document.getElementById('gameMode').value === 'vsAi') ? (attackerPlayer === userPlayer ? 'あなた' : 'AI') : (attackerPlayer === SENTE ? '先手' : '後手');
+      const defName = (document.getElementById('gameMode').value === 'vsAi') ? (defenderPlayer === userPlayer ? 'あなた' : 'AI') : (defenderPlayer === SENTE ? '先手' : '後手');
       const markIcon = attackerPlayer === SENTE ? '⚪' : '🔴';
       let recordDesc = '';
 
@@ -920,12 +993,10 @@
         };
 
         if (!defenderHasMark) {
-          // 未マークの手は敗北により消滅
           board[targetIndex] = { mark: null, hand: null };
           recordDesc = `⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ ${pName}の勝利！ [${coordName(attackerIndex)}]が${markIcon}で囲まれ、未マークの[${coordName(targetIndex)}]は消滅`;
           logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>${pName}の勝利！</b> [${coordName(attackerIndex)}]が${markIcon}で囲まれ、未マークの[${coordName(targetIndex)}]は消滅！`, attackerPlayer === SENTE ? 'sente-win' : 'gote-win');
         } else {
-          // マーク済みの手はマークも手も消滅せず残り続け、対戦継続！
           board[targetIndex] = {
             mark: defenderCell.mark,
             hand: { player: defenderPlayer, type: defenderHand }
@@ -1020,8 +1091,9 @@
     }
 
     playSound('victory'); startConfetti();
-    const wName = winner === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
-    const loserName = winner === SENTE ? '後手 (赤丸🔴)' : '先手 (白丸⚪)';
+    const mode = document.getElementById('gameMode').value;
+    const wName = (mode === 'vsAi') ? (winner === userPlayer ? 'あなた（' + (winner === SENTE ? '白丸⚪' : '赤丸🔴') + '）' : 'AI（' + (winner === SENTE ? '白丸⚪' : '赤丸🔴') + '）') : (winner === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)');
+    const loserName = (mode === 'vsAi') ? (winner === userPlayer ? 'AI' : 'あなた') : (winner === SENTE ? '後手 (赤丸🔴)' : '先手 (白丸⚪)');
 
     if (isResignation) {
       logEntry(`🏳️ <b>${loserName}が投了しました。${wName}の勝利です！</b>`, 'victory');
@@ -1034,7 +1106,7 @@
     setTimeout(() => {
       document.getElementById('victoryIcon').innerText = '👑';
       document.getElementById('victoryTitle').innerText = isResignation ? `${wName} の投了勝ち！` : `${wName} の完全勝利！`;
-      document.getElementById('victoryDesc').innerText = isResignation ? `${loserName} の投了により、${wName} の勝利となりました。` : `見事な戦略で5×5盤面に3つの囲み丸（${winner === SENTE ? '⚪' : '🔴'}）を揃えました！`;
+      document.getElementById('victoryDesc').innerText = isResignation ? `${loserName} の投了により、${wName} の勝利となりました。` : `見事な戦略で5×5盤面に3つの囲み丸を揃えました！`;
       document.getElementById('victoryModal').classList.add('active');
     }, 800);
   }
@@ -1070,6 +1142,8 @@
         if (conn && conn.open) {
           conn.send({ type: 'RESIGN', resigningPlayer: myRole });
         }
+      } else if (mode === 'vsAi') {
+        winner = userPlayer === SENTE ? GOTE : SENTE;
       } else {
         winner = currentPlayer === SENTE ? GOTE : SENTE;
       }
@@ -1170,7 +1244,8 @@
 
   function checkAiTurn() {
     if (gameOver || isReviewMode) return;
-    if (document.getElementById('gameMode').value === 'vsAi' && currentPlayer === GOTE) {
+    const mode = document.getElementById('gameMode').value;
+    if (mode === 'vsAi' && currentPlayer !== userPlayer) {
       setTimeout(executeAiTurn, 600);
     }
   }
@@ -1201,14 +1276,15 @@
   function evaluateMove(index, hand) {
     let score = 0;
     const opponentTargets = getAttackLineIndices(index, hand).filter(idx => {
-      const c = board[idx]; return c.hand !== null && c.hand.player === SENTE;
+      const c = board[idx]; return c.hand !== null && c.hand.player === userPlayer;
     });
 
+    const aiPlayer = userPlayer === SENTE ? GOTE : SENTE;
     const prevMark = board[index].mark;
-    board[index].mark = GOTE;
-    if (checkWin(GOTE)) score += 1000;
-    board[index].mark = SENTE;
-    if (checkWin(SENTE)) score += 400;
+    board[index].mark = aiPlayer;
+    if (checkWin(aiPlayer)) score += 1000;
+    board[index].mark = userPlayer;
+    if (checkWin(userPlayer)) score += 400;
     board[index].mark = prevMark;
 
     for (let t of opponentTargets) {
@@ -1244,9 +1320,23 @@
     peer.on('connection', (incomingConn) => {
       conn = incomingConn;
       setupConnectionHandlers();
-      myRole = SENTE;
-      document.getElementById('senteRole').style.display = 'inline-block';
-      document.getElementById('goteRole').style.display = 'none';
+      
+      // ホスト側で先手・後手をランダム決定して同期
+      myRole = Math.random() < 0.5 ? SENTE : GOTE;
+      const guestRole = myRole === SENTE ? GOTE : SENTE;
+
+      if (myRole === SENTE) {
+        document.getElementById('senteRole').innerText = 'YOU';
+        document.getElementById('goteRole').innerText = '相手';
+      } else {
+        document.getElementById('senteRole').innerText = '相手';
+        document.getElementById('goteRole').innerText = 'YOU';
+      }
+
+      conn.on('open', () => {
+        conn.send({ type: 'INIT_ROLES', role: guestRole });
+      });
+
       document.getElementById('onlineStatusText').innerText = '✅ 対戦相手が接続しました！対戦開始！';
       playSound('place');
       updateStatusUI();
@@ -1285,9 +1375,6 @@
     initPeer(null, () => {
       conn = peer.connect(targetRoomId);
       setupConnectionHandlers();
-      myRole = GOTE;
-      document.getElementById('goteRole').style.display = 'inline-block';
-      document.getElementById('senteRole').style.display = 'none';
       document.getElementById('onlineCreateSection').style.display = 'none';
       document.getElementById('onlineActiveRoomBox').style.display = 'block';
       document.getElementById('displayRoomCode').innerText = code;
@@ -1298,7 +1385,18 @@
 
   function setupConnectionHandlers() {
     conn.on('data', (data) => {
-      if (data.type === 'MOVE') makeMove(data.index, data.hand);
+      if (data.type === 'INIT_ROLES') {
+        myRole = data.role;
+        if (myRole === SENTE) {
+          document.getElementById('senteRole').innerText = 'YOU';
+          document.getElementById('goteRole').innerText = '相手';
+        } else {
+          document.getElementById('senteRole').innerText = '相手';
+          document.getElementById('goteRole').innerText = 'YOU';
+        }
+        updateStatusUI();
+      }
+      else if (data.type === 'MOVE') makeMove(data.index, data.hand);
       else if (data.type === 'RESOLVE_BATTLE') resolveBattle(data.attackerIdx, data.hand, data.targetIdx);
       else if (data.type === 'RESIGN') {
         const winner = data.resigningPlayer === SENTE ? GOTE : SENTE;
