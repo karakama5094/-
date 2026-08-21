@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>新感覚！ジャンケン三目並べ (AI難易度5段階・高知能版)</title>
+<title>新感覚！ジャンケン三目並べ (丸カウント判定勝利対応版)</title>
 <!-- PeerJS (WebRTC P2P通信ライブラリ) -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -83,6 +83,14 @@
     border-radius: 4px;
     background: #3b82f6;
     color: #fff;
+    margin-left: 4px;
+  }
+  .mark-count-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15);
     margin-left: 4px;
   }
 
@@ -385,18 +393,18 @@
 
 <header>
   <h1>⚔️ ジャンケン三目並べ ⚔️</h1>
-  <div class="subtitle">AI難易度5段階（日東駒専〜オックスフォード）＆ 多彩な戦術エンジン搭載！</div>
+  <div class="subtitle">3目並ばない時は「丸の総数」で判定勝利 ｜ 5段階AI ＆ 振り返り対応</div>
 </header>
 
 <div class="app-container">
   <div class="game-area">
     <div class="status-bar">
       <div id="senteTag" class="player-tag sente active">
-        <span>⚪ 先手</span><span id="senteRole" class="role-indicator">YOU</span>
+        <span>⚪ 先手</span><span id="senteRole" class="role-indicator">YOU</span><span id="senteCountBadge" class="mark-count-badge">⚪ 0</span>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted);">VS</div>
       <div id="goteTag" class="player-tag gote">
-        <span>🔴 後手</span><span id="goteRole" class="role-indicator" style="background:#ef4444;">AI</span>
+        <span>🔴 後手</span><span id="goteRole" class="role-indicator" style="background:#ef4444;">AI</span><span id="goteCountBadge" class="mark-count-badge">🔴 0</span>
       </div>
     </div>
 
@@ -510,14 +518,16 @@
             ・勝つと<b>自分の丸（⚪/🔴）がジャンケンを包み込みます</b>！<br>
             ・<b>マーク済みの手はマークも手も永続</b>し対戦継続！<br>
             ・<b>未マークの手のみ負けると消滅</b>（マスが空白に）します。<br>
-            ※一つ飛ばしのマスとは対戦できません。
+            ※一つ飛ばしのマスとは対戦不可。
           </td></tr>
           <tr><td>✌️ チョキ</td><td>タテ隣 (上下2マス)</td></tr>
           <tr><td>🖐️ パー</td><td>ヨコ隣 (左右2マス)</td></tr>
         </tbody>
       </table>
       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-        ※丸で囲まれた手を<b>先に3つ並べた</b>プレイヤーの勝利！
+        <b>【勝敗決定】</b><br>
+        ① 丸で囲まれた手を<b>先に3つ並べた</b>プレイヤーの勝利！<br>
+        ② <b>25マス満杯時に3目並べが揃わない場合、獲得した「丸の総数（⚪ vs 🔴）」が多い方の判定勝利！</b>（同数の場合は引き分け）
       </div>
     </div>
 
@@ -554,7 +564,7 @@
   </div>
 </div>
 
-<!-- Victory / Resignation / Draw Modal -->
+<!-- Victory / Resignation / Judgement / Draw Modal -->
 <div id="victoryModal" class="modal-overlay">
   <div class="battle-card" style="border-color: #fbbf24; box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);">
     <div id="victoryIcon" style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
@@ -641,10 +651,14 @@
   }
 
   function recordHistory(description, highlightIdx = null) {
+    const senteCount = board.filter(c => c.mark === SENTE).length;
+    const goteCount = board.filter(c => c.mark === GOTE).length;
     historyRecords.push({
       board: JSON.parse(JSON.stringify(board)),
       desc: description,
-      highlightIndex: highlightIdx
+      highlightIndex: highlightIdx,
+      senteCount: senteCount,
+      goteCount: goteCount
     });
   }
 
@@ -757,6 +771,12 @@
 
   function updateStatusUI() {
     if (isReviewMode) return;
+
+    // 現在の丸数を更新
+    const senteCount = board.filter(c => c.mark === SENTE).length;
+    const goteCount = board.filter(c => c.mark === GOTE).length;
+    document.getElementById('senteCountBadge').innerText = `⚪ ${senteCount}`;
+    document.getElementById('goteCountBadge').innerText = `🔴 ${goteCount}`;
 
     document.getElementById('senteTag').classList.toggle('active', currentPlayer === SENTE && !gameOver);
     document.getElementById('goteTag').classList.toggle('active', currentPlayer === GOTE && !gameOver);
@@ -1043,613 +1063,4 @@
 
       } else {
         // --- あいこ ---
-        board[attackerIndex].hand = { player: attackerPlayer, type: attackerHand };
-        playSound('draw');
-        recordDesc = `⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ あいこ！ 両者の手が盤面に残留`;
-        logEntry(`⚔️ ${pName}の${HAND_NAMES[attackerHand]} vs ${defName}の${HAND_NAMES[defenderHand]} ➔ <b>あいこ！</b> 両者の手が盤面に残留`);
-      }
-
-      recordHistory(recordDesc, attackerIndex);
-      renderBoard();
-
-      // 勝利判定
-      const winningLine = checkWin(attackerPlayer);
-      if (winningLine) { triggerVictory(attackerPlayer, winningLine); return; }
-
-      // 盤面満杯時の引き分け判定
-      if (isBoardFull()) {
-        triggerDraw();
-        return;
-      }
-
-      finishTurn();
-    });
-  }
-
-  function isBoardFull() {
-    return board.every(cell => cell.hand !== null);
-  }
-
-  function finishTurn() {
-    if (isBoardFull()) {
-      triggerDraw();
-      return;
-    }
-
-    turnCount++; currentPlayer = currentPlayer === SENTE ? GOTE : SENTE;
-    updateStatusUI(); checkAiTurn();
-  }
-
-  function checkWin(player, customBoard = null) {
-    const b = customBoard || board;
-    const isPlayerMark = (idx) => b[idx].mark === player;
-
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c <= 2; c++) {
-        const i1 = r * 5 + c, i2 = r * 5 + c + 1, i3 = r * 5 + c + 2;
-        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
-      }
-    }
-    for (let c = 0; c < 5; c++) {
-      for (let r = 0; r <= 2; r++) {
-        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c, i3 = (r + 2) * 5 + c;
-        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
-      }
-    }
-    for (let r = 0; r <= 2; r++) {
-      for (let c = 0; c <= 2; c++) {
-        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c + 1, i3 = (r + 2) * 5 + c + 2;
-        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
-      }
-    }
-    for (let r = 0; r <= 2; r++) {
-      for (let c = 2; c < 5; c++) {
-        const i1 = r * 5 + c, i2 = (r + 1) * 5 + c - 1, i3 = (r + 2) * 5 + c - 2;
-        if (isPlayerMark(i1) && isPlayerMark(i2) && isPlayerMark(i3)) return [i1, i2, i3];
-      }
-    }
-    return null;
-  }
-
-  function triggerVictory(winner, winIndices, isResignation = false) {
-    gameOver = true;
-    document.getElementById('btnResign').disabled = true;
-
-    if (winIndices) {
-      winIndices.forEach(idx => boardEl.children[idx].classList.add('win-line'));
-    }
-
-    playSound('victory'); startConfetti();
-    const mode = document.getElementById('gameMode').value;
-    const wName = (mode === 'vsAi') ? (winner === userPlayer ? 'あなた（' + (winner === SENTE ? '白丸⚪' : '赤丸🔴') + '）' : 'AI（' + (winner === SENTE ? '白丸⚪' : '赤丸🔴') + '）') : (winner === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)');
-    const loserName = (mode === 'vsAi') ? (winner === userPlayer ? 'AI' : 'あなた') : (winner === SENTE ? '後手 (赤丸🔴)' : '先手 (白丸⚪)');
-
-    if (isResignation) {
-      logEntry(`🏳️ <b>${loserName}が投了しました。${wName}の勝利です！</b>`, 'victory');
-      recordHistory(`🏳️ ${loserName}の投了により、${wName}の勝利！`);
-    } else {
-      logEntry(`🎉 <b>${wName}の勝利！</b> 囲まれたジャンケンを3つ揃えて勝利しました！`, 'victory');
-      recordHistory(`🎉 ${wName}が3目並べを達成して勝利！`);
-    }
-
-    setTimeout(() => {
-      document.getElementById('victoryIcon').innerText = '👑';
-      document.getElementById('victoryTitle').innerText = isResignation ? `${wName} の投了勝ち！` : `${wName} の完全勝利！`;
-      document.getElementById('victoryDesc').innerText = isResignation ? `${loserName} の投了により、${wName} の勝利となりました。` : `見事な戦略で5×5盤面に3つの囲み丸を揃えました！`;
-      document.getElementById('victoryModal').classList.add('active');
-    }, 800);
-  }
-
-  function triggerDraw() {
-    gameOver = true;
-    document.getElementById('btnResign').disabled = true;
-    playSound('draw');
-    logEntry(`🤝 <b>引き分け（ドロー）！</b> 25マスすべてが埋まりました。`);
-    recordHistory('🤝 25マス満杯による引き分け');
-    setTimeout(() => {
-      document.getElementById('victoryIcon').innerText = '🤝';
-      document.getElementById('victoryTitle').innerText = `引き分け (Draw)`;
-      document.getElementById('victoryDesc').innerText = `盤面の25マスすべてがジャンケンで埋まりました！互角の好勝負でした。`;
-      document.getElementById('victoryModal').classList.add('active');
-    }, 600);
-  }
-
-  // --- 投了処理 ---
-  function confirmResign() {
-    if (gameOver || isReviewMode) return;
-    const mode = document.getElementById('gameMode').value;
-    
-    if (mode === 'online' && !conn) {
-      alert('対戦中ではありません');
-      return;
-    }
-
-    if (confirm('本当に投了しますか？（相手の勝利となります）')) {
-      let winner;
-      if (mode === 'online') {
-        winner = myRole === SENTE ? GOTE : SENTE;
-        if (conn && conn.open) {
-          conn.send({ type: 'RESIGN', resigningPlayer: myRole });
-        }
-      } else if (mode === 'vsAi') {
-        winner = userPlayer === SENTE ? GOTE : SENTE;
-      } else {
-        winner = currentPlayer === SENTE ? GOTE : SENTE;
-      }
-      triggerVictory(winner, null, true);
-    }
-  }
-
-  // --- 振り返り（リプレイ）機能 ---
-  function startReviewMode() {
-    document.getElementById('victoryModal').classList.remove('active');
-    stopConfetti();
-    isReviewMode = true;
-
-    document.getElementById('handSelectorSection').style.display = 'none';
-    document.getElementById('reviewControls').classList.add('active');
-
-    currentReviewStep = historyRecords.length - 1;
-    showReviewStep(currentReviewStep);
-  }
-
-  function exitReviewMode() {
-    isReviewMode = false;
-    document.getElementById('reviewControls').classList.remove('active');
-    document.getElementById('handSelectorSection').style.display = 'flex';
-    document.getElementById('messageBanner').className = 'message-banner';
-    document.getElementById('messageBanner').innerText = 'ゲーム終了！';
-    renderBoard();
-    document.getElementById('victoryModal').classList.add('active');
-  }
-
-  function showReviewStep(stepIndex) {
-    if (stepIndex < 0 || stepIndex >= historyRecords.length) return;
-    currentReviewStep = stepIndex;
-
-    const record = historyRecords[stepIndex];
-    renderBoard(record.board, record.highlightIndex);
-
-    const banner = document.getElementById('messageBanner');
-    banner.className = 'message-banner review-mode';
-    banner.innerText = `【第 ${stepIndex} 手】 ${record.desc}`;
-
-    document.getElementById('reviewStepDisplay').innerText = `${stepIndex} / ${historyRecords.length - 1}`;
-    document.getElementById('btnReviewFirst').disabled = (stepIndex === 0);
-    document.getElementById('btnReviewPrev').disabled = (stepIndex === 0);
-    document.getElementById('btnReviewNext').disabled = (stepIndex === historyRecords.length - 1);
-    document.getElementById('btnReviewLast').disabled = (stepIndex === historyRecords.length - 1);
-
-    playSound('click');
-  }
-
-  function reviewStepDelta(delta) {
-    showReviewStep(currentReviewStep + delta);
-  }
-
-  function reviewStepTo(targetStep) {
-    showReviewStep(targetStep);
-  }
-
-  function showBattleModal(atkPlayer, atkHand, defPlayer, defHand, result, onResolve) {
-    lastBattleResolveCallback = onResolve;
-    document.getElementById('battleSubtitle').innerText = `${atkPlayer === SENTE ? '先手' : '後手'}からの攻撃！`;
-    const atkTag = document.getElementById('battleAttackerTag');
-    atkTag.innerText = atkPlayer === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
-    atkTag.style.color = atkPlayer === SENTE ? '#ffffff' : '#ef4444';
-    const defTag = document.getElementById('battleDefenderTag');
-    defTag.innerText = defPlayer === SENTE ? '先手 (白丸⚪)' : '後手 (赤丸🔴)';
-    defTag.style.color = defPlayer === SENTE ? '#ffffff' : '#ef4444';
-    document.getElementById('battleAttackerIcon').innerText = HAND_ICONS[atkHand];
-    document.getElementById('battleAttackerHandName').innerText = HAND_NAMES[atkHand];
-    document.getElementById('battleDefenderIcon').innerText = HAND_ICONS[defHand];
-    document.getElementById('battleDefenderHandName').innerText = HAND_NAMES[defHand];
-    const resText = document.getElementById('battleResultText');
-    const detailText = document.getElementById('battleDetailText');
-    if (result === 1) {
-      resText.className = 'battle-result-text win-text'; resText.innerText = 'WIN! 攻撃側の勝利！';
-      detailText.innerText = `攻撃マスが ${atkPlayer === SENTE ? '白丸⚪' : '赤丸🔴'} で囲まれます。未マークの相手手は消滅します。`;
-    } else if (result === -1) {
-      resText.className = 'battle-result-text lose-text'; resText.innerText = 'LOSE... 守備側の防衛！';
-      detailText.innerText = '敗北した未マークの攻撃手は消滅します。';
-    } else {
-      resText.className = 'battle-result-text draw-text'; resText.innerText = 'DRAW (あいこ)';
-      detailText.innerText = '両者の手が盤面に残り続けます。';
-    }
-    document.getElementById('battleModal').classList.add('active');
-  }
-
-  function closeBattleModal() {
-    document.getElementById('battleModal').classList.remove('active');
-    if (lastBattleResolveCallback) {
-      const cb = lastBattleResolveCallback; lastBattleResolveCallback = null; cb();
-    }
-  }
-
-  function closeVictoryModal() {
-    document.getElementById('victoryModal').classList.remove('active');
-    stopConfetti();
-  }
-
-  function checkAiTurn() {
-    if (gameOver || isReviewMode) return;
-    const mode = document.getElementById('gameMode').value;
-    if (mode === 'vsAi' && currentPlayer !== userPlayer) {
-      setTimeout(executeAiTurn, 550);
-    }
-  }
-
-  // ==========================================
-  // 🧠 超進化！5段階 AI 思考エンジン
-  // ==========================================
-  function executeAiTurn() {
-    if (gameOver || isReviewMode) return;
-    const level = document.getElementById('aiLevel').value;
-    const emptyIndices = [];
-    for (let i = 0; i < 25; i++) if (board[i].hand === null) emptyIndices.push(i);
-    if (emptyIndices.length === 0) return;
-
-    const hands = ['rock', 'scissors', 'paper'];
-    const aiPlayer = userPlayer === SENTE ? GOTE : SENTE;
-
-    // --- レベル1: 日東駒専 (初級・おてがる) ---
-    // 40%でランダム行動、60%で直接攻撃や勝てる手を打つ
-    if (level === 'nitto') {
-      if (Math.random() < 0.4) {
-        const randIdx = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-        const randHand = hands[Math.floor(Math.random() * hands.length)];
-        makeMove(randIdx, randHand);
-        return;
-      }
-    }
-
-    // --- 候補手すべてのスコアを評価 ---
-    const candidates = [];
-    for (let idx of emptyIndices) {
-      for (let hand of hands) {
-        const score = evaluateAiMove(idx, hand, aiPlayer, userPlayer, level);
-        candidates.push({ index: idx, hand: hand, score: score });
-      }
-    }
-
-    // スコア順に降順ソート
-    candidates.sort((a, b) => b.score - a.score);
-
-    // --- レベル別の選択ロジック（毎回同じ手にならない多様性ランダムを導入） ---
-    let chosenMove = candidates[0];
-
-    if (level === 'oxford') {
-      // オックスフォード: 最善スコア帯（最高スコアから僅差以内）から重み付けでランダム選択（毎回違う最高手を繰り出す）
-      const topScore = candidates[0].score;
-      const topCandidates = candidates.filter(c => c.score >= topScore - 80);
-      chosenMove = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-    } else if (level === 'todai') {
-      // 東大: 上位3つの最善手から高確率でランダム選択
-      const topCandidates = candidates.slice(0, Math.min(3, candidates.length));
-      chosenMove = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-    } else if (level === 'wasedakeio') {
-      // 早慶: 上位5手からランダム選択
-      const topCandidates = candidates.slice(0, Math.min(5, candidates.length));
-      chosenMove = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-    } else if (level === 'march') {
-      // MARCH: 上位8手からランダム選択
-      const topCandidates = candidates.slice(0, Math.min(8, candidates.length));
-      chosenMove = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-    } else {
-      // 日東駒専: 上位12手からランダム
-      const topCandidates = candidates.slice(0, Math.min(12, candidates.length));
-      chosenMove = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-    }
-
-    if (chosenMove) {
-      makeMove(chosenMove.index, chosenMove.hand);
-    }
-  }
-
-  // --- AIの手の深層評価関数 ---
-  function evaluateAiMove(index, hand, aiPlayer, humanPlayer, level) {
-    let score = 0;
-    const opponentTargets = getAttackLineIndices(index, hand).filter(idx => {
-      const c = board[idx]; return c.hand !== null && c.hand.player === humanPlayer;
-    });
-
-    const hasBattle = opponentTargets.length > 0;
-    let winBattleCount = 0;
-    let loseBattleCount = 0;
-
-    for (let t of opponentTargets) {
-      const res = jankenCompare(hand, board[t].hand.type);
-      if (res === 1) winBattleCount++;
-      else if (res === -1) loseBattleCount++;
-    }
-
-    // 1. 【即座の3目並べ勝利】（最優先 +50,000）
-    if (winBattleCount > 0) {
-      board[index].mark = aiPlayer;
-      if (checkWin(aiPlayer)) score += 50000;
-      board[index].mark = null;
-    }
-
-    // 2. 【相手の3目並べリーチを阻止・ブロック】（+25,000）
-    board[index].mark = humanPlayer;
-    if (checkWin(humanPlayer)) {
-      score += 25000;
-      if (winBattleCount > 0) score += 10000;
-    }
-    board[index].mark = null;
-
-    // 3. 【ジャンケン勝敗の直接評価】
-    if (hasBattle) {
-      if (winBattleCount > 0 && loseBattleCount === 0) {
-        score += 3500; // 確実に勝てる手
-        const targetCell = board[opponentTargets[0]];
-        if (targetCell.mark === null) score += 800;
-      } else if (loseBattleCount > 0 && winBattleCount === 0) {
-        score -= 4000; // 確実に負けて消滅する手は大幅減点
-      } else if (winBattleCount > 0 && loseBattleCount > 0) {
-        score += 1200; // 選択肢がある場合
-      } else {
-        score += 150;  // あいこ
-      }
-    } else {
-      score += 300; // 平穏な配置
-    }
-
-    // 4. 【マーク獲得時のアラインメント（2目並べ・ダブルリーチ作成）】
-    if (level === 'oxford' || level === 'todai' || level === 'wasedakeio') {
-      board[index].mark = aiPlayer;
-      const lines2 = countTwoInARow(aiPlayer);
-      score += lines2 * 1200;
-
-      board[index].mark = humanPlayer;
-      const enemyLines2 = countTwoInARow(humanPlayer);
-      score += enemyLines2 * 900;
-      board[index].mark = null;
-    }
-
-    // 5. 【敵からの反撃被弾リスク予測（オックスフォード＆東大の超先読み）】
-    if (level === 'oxford' || level === 'todai') {
-      const adjacentEmpty = getAdjacentEmptyCells(index);
-      let dangerExposure = 0;
-      for (let emptyIdx of adjacentEmpty) {
-        const winningCounterHand = getWinningHand(hand);
-        const counterLine = getAttackLineIndices(emptyIdx, winningCounterHand);
-        if (counterLine.includes(index)) {
-          dangerExposure++;
-        }
-      }
-      score -= dangerExposure * 350;
-
-      if (level === 'oxford') {
-        const row = Math.floor(index / 5), col = index % 5;
-        const centerDist = Math.abs(row - 2) + Math.abs(col - 2);
-        score += (4 - centerDist) * 120;
-      }
-    }
-
-    // 6. 【初手・序盤の布石多様化（ランダム揺らぎ）】
-    if (turnCount <= 2) {
-      const row = Math.floor(index / 5), col = index % 5;
-      if (index === 12) score += 600; // 中央
-      if ([6, 8, 16, 18].includes(index)) score += 450; // 内側角
-      if ([7, 11, 13, 17].includes(index)) score += 350; // 内側辺
-      score += Math.random() * 200; // 毎回違う初手を打つためのゆらぎ
-    } else {
-      score += Math.random() * 80;
-    }
-
-    return score;
-  }
-
-  // 2目並べの数をカウント
-  function countTwoInARow(player) {
-    let count = 0;
-    const isM = (idx) => board[idx].mark === player;
-    const isE = (idx) => board[idx].mark === null;
-
-    const all3Lines = getAllWinningLines();
-    for (let line of all3Lines) {
-      const marks = line.filter(idx => isM(idx)).length;
-      const empties = line.filter(idx => isE(idx)).length;
-      if (marks === 2 && empties === 1) count++;
-    }
-    return count;
-  }
-
-  function getAllWinningLines() {
-    const lines = [];
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c <= 2; c++) lines.push([r * 5 + c, r * 5 + c + 1, r * 5 + c + 2]);
-    }
-    for (let c = 0; c < 5; c++) {
-      for (let r = 0; r <= 2; r++) lines.push([r * 5 + c, (r + 1) * 5 + c, (r + 2) * 5 + c]);
-    }
-    for (let r = 0; r <= 2; r++) {
-      for (let c = 0; c <= 2; c++) lines.push([r * 5 + c, (r + 1) * 5 + c + 1, (r + 2) * 5 + c + 2]);
-    }
-    for (let r = 0; r <= 2; r++) {
-      for (let c = 2; c < 5; c++) lines.push([r * 5 + c, (r + 1) * 5 + c - 1, (r + 2) * 5 + c - 2]);
-    }
-    return lines;
-  }
-
-  function getAdjacentEmptyCells(index) {
-    const row = Math.floor(index / 5), col = index % 5, res = [];
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
-          const idx = nr * 5 + nc;
-          if (board[idx].hand === null) res.push(idx);
-        }
-      }
-    }
-    return res;
-  }
-
-  function getWinningHand(targetHand) {
-    if (targetHand === 'rock') return 'paper';
-    if (targetHand === 'scissors') return 'rock';
-    return 'scissors';
-  }
-
-  function coordName(idx) {
-    return `${String.fromCharCode(65 + (idx % 5))}${Math.floor(idx / 5) + 1}`;
-  }
-
-  function logEntry(msg, className = '') {
-    const log = document.getElementById('battleLog');
-    const el = document.createElement('div');
-    el.className = `log-entry ${className}`;
-    el.innerHTML = msg;
-    log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  // --- WebRTC PeerJS オンライン対戦 ---
-  function generateShortCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
-
-  function initPeer(customId, onReady) {
-    if (peer) peer.destroy();
-    peer = new Peer(customId);
-    peer.on('open', (id) => { if (onReady) onReady(id); });
-    peer.on('connection', (incomingConn) => {
-      conn = incomingConn;
-      setupConnectionHandlers();
-      
-      myRole = Math.random() < 0.5 ? SENTE : GOTE;
-      const guestRole = myRole === SENTE ? GOTE : SENTE;
-
-      if (myRole === SENTE) {
-        document.getElementById('senteRole').innerText = 'YOU';
-        document.getElementById('goteRole').innerText = '相手';
-      } else {
-        document.getElementById('senteRole').innerText = '相手';
-        document.getElementById('goteRole').innerText = 'YOU';
-      }
-
-      conn.on('open', () => {
-        conn.send({ type: 'INIT_ROLES', role: guestRole });
-      });
-
-      document.getElementById('onlineStatusText').innerText = '✅ 対戦相手が接続しました！対戦開始！';
-      playSound('place');
-      updateStatusUI();
-    });
-    peer.on('error', (err) => {
-      console.error(err);
-      alert('通信接続エラーが発生しました。部屋コードを確認して再度お試しください。');
-    });
-  }
-
-  function createOnlineRoom() {
-    const code = generateShortCode();
-    currentRoomId = 'jtt-' + code;
-    initPeer(currentRoomId, (id) => {
-      document.getElementById('onlineCreateSection').style.display = 'none';
-      document.getElementById('onlineActiveRoomBox').style.display = 'block';
-      document.getElementById('displayRoomCode').innerText = code;
-      document.getElementById('onlineStatusText').innerText = '相手の参加を待っています...';
-    });
-  }
-
-  function copyInviteLink() {
-    const code = document.getElementById('displayRoomCode').innerText;
-    const url = window.location.origin + window.location.pathname + '?room=' + code;
-    navigator.clipboard.writeText(`ジャンケン三目並べで対戦しよう！\n部屋コード: ${code}\n参加リンク: ${url}`).then(() => {
-      alert('招待メッセージをクリップボードにコピーしました！LINE等に貼り付けて送信してください。');
-    }).catch(() => {
-      prompt('以下の招待URLをコピーしてください:', url);
-    });
-  }
-
-  function joinOnlineRoom(codeToJoin) {
-    const code = codeToJoin || document.getElementById('joinRoomInput').value.trim();
-    if (!code) { alert('部屋コードを入力してください'); return; }
-    const targetRoomId = 'jtt-' + code;
-    initPeer(null, () => {
-      conn = peer.connect(targetRoomId);
-      setupConnectionHandlers();
-      document.getElementById('onlineCreateSection').style.display = 'none';
-      document.getElementById('onlineActiveRoomBox').style.display = 'block';
-      document.getElementById('displayRoomCode').innerText = code;
-      document.getElementById('onlineStatusText').innerText = '✅ 部屋に接続完了！対戦開始！';
-      updateStatusUI();
-    });
-  }
-
-  function setupConnectionHandlers() {
-    conn.on('data', (data) => {
-      if (data.type === 'INIT_ROLES') {
-        myRole = data.role;
-        if (myRole === SENTE) {
-          document.getElementById('senteRole').innerText = 'YOU';
-          document.getElementById('goteRole').innerText = '相手';
-        } else {
-          document.getElementById('senteRole').innerText = '相手';
-          document.getElementById('goteRole').innerText = 'YOU';
-        }
-        updateStatusUI();
-      }
-      else if (data.type === 'MOVE') makeMove(data.index, data.hand);
-      else if (data.type === 'RESOLVE_BATTLE') resolveBattle(data.attackerIdx, data.hand, data.targetIdx);
-      else if (data.type === 'RESIGN') {
-        const winner = data.resigningPlayer === SENTE ? GOTE : SENTE;
-        triggerVictory(winner, null, true);
-      }
-      else if (data.type === 'RESET') resetGame(false);
-    });
-    conn.on('close', () => {
-      alert('対戦相手との接続が切断されました。');
-      resetGame();
-    });
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    createBoardUI();
-    const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
-    if (roomParam) {
-      document.getElementById('gameMode').value = 'online';
-      changeMode();
-      document.getElementById('joinRoomInput').value = roomParam;
-      setTimeout(() => joinOnlineRoom(roomParam), 500);
-    } else {
-      resetGame();
-    }
-  });
-
-  // Confetti Animation
-  let confettiAnimId = null;
-  const confettiCanvas = document.getElementById('confetti-canvas'), ctx = confettiCanvas.getContext('2d');
-  let particles = [];
-  function startConfetti() {
-    confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight;
-    particles = [];
-    const colors = ['#ffffff', '#ef4444', '#f59e0b', '#10b981', '#38bdf8'];
-    for (let i = 0; i < 80; i++) {
-      particles.push({
-        x: Math.random() * confettiCanvas.width, y: Math.random() * -confettiCanvas.height,
-        size: Math.random() * 8 + 4, color: colors[Math.floor(Math.random() * colors.length)],
-        vx: Math.random() * 4 - 2, vy: Math.random() * 4 + 3, rot: Math.random() * 360, vRot: Math.random() * 10 - 5
-      });
-    }
-    animateConfetti();
-  }
-  function animateConfetti() {
-    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
-    particles.forEach(p => {
-      p.x += p.vx; p.y += p.vy; p.rot += p.vRot;
-      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate((p.rot * Math.PI) / 180);
-      ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size); ctx.restore();
-    });
-    confettiAnimId = requestAnimationFrame(animateConfetti);
-  }
-  function stopConfetti() {
-    if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
-    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
-  }
-</script>
-</body>
-</html>
+        board[attackerIndex].hand = { player: attackerPlayer, type: attackerHand
